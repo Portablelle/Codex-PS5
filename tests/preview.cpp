@@ -22,7 +22,6 @@ bool Client::start(){
     return true;
 }
 void Client::stop(){}State Client::snapshot(){return protocol_.state;}
-void Client::changeLanguage(){protocol_.changeLanguage();}
 void Client::login(){}void Client::submit(std::string){}void Client::interrupt(){}void Client::decide(bool){}
 void Voice::toggle(){}void Voice::cancel(){}void Voice::shutdown(){}
 VoiceState Voice::snapshot(){return {};}
