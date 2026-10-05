@@ -37,9 +37,14 @@ void Protocol::startThread(){
     for(const auto& item:pending_)if(item.second=="thread/start")return;
     request("thread/start",{{"model","gpt-6.1-sol"},{"allowProviderModelFallback",false},
                     {"config",{{"model_reasoning_effort","low"}}},
-                    {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy","untrusted"},
-                    {"sandbox","danger-full-access"},{"developerInstructions",
-                    instructions()}});
+                    {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy",gameplay_?"never":"untrusted"},
+                    {"sandbox",gameplay_?"read-only":"danger-full-access"},{"developerInstructions",
+                    gameplay_?"You are a voice companion helping the user play a game on PS5. "
+                    "Use the supplied screenshot and question. Answer in the user's language, "
+                    "briefly and naturally for spoken playback, without Markdown. "
+                    "Give actionable help, avoid unsolicited spoilers, and ask a short question "
+                    "if the game or situation cannot be identified. Never invent what the image shows. "
+                    "Do not modify files, run console commands, or control the game.":instructions()}});
 }
 void Protocol::begin(){
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;
@@ -56,14 +61,19 @@ void Protocol::login(){
     for(const auto& item:pending_)if(item.second=="account/login/start")return;
     request("account/login/start",{{"type","chatgptDeviceCode"}});
 }
-void Protocol::submit(std::string_view text){
-    if(!state.ready || state.busy || state.thread.empty() || text.empty() || text.size()>16384)return;
+bool Protocol::submit(std::string_view text,std::string_view imagePath){
+    if(!state.ready || state.busy || state.thread.empty() || text.empty() || text.size()>16384)return false;
+    if(!imagePath.empty() && (imagePath.front()!='/' || imagePath.size()>1024 || imagePath.find('\0')!=std::string_view::npos))return false;
     state.busy=true;state.response.clear();state.status="Codex is thinking...";
+    state.turnStatus.clear();
     ++turnSequence_;
     state.messages.push_back({true,std::string(text),{}});++state.chatRevision;
     while(state.messages.size()>64)state.messages.pop_front();
-    request("turn/start",{{"threadId",state.thread},{"model","gpt-6.1-sol"},{"effort","low"},{"input",Json::array({{{"type","text"},{"text",std::string(text)},{"text_elements",Json::array()}}})}});
+    auto input=Json::array({{{"type","text"},{"text",std::string(text)},{"text_elements",Json::array()}}});
+    if(!imagePath.empty())input.push_back({{"type","localImage"},{"path",std::string(imagePath)}});
+    request("turn/start",{{"threadId",state.thread},{"model","gpt-6.1-sol"},{"effort","low"},{"input",std::move(input)}});
     ++state.revision;
+    return true;
 }
 void Protocol::agentMessage(std::string id,std::string text,bool append){
     if(id.empty())id="local-turn-"+std::to_string(turnSequence_);
@@ -94,6 +104,7 @@ bool Protocol::ingest(std::string_view line){
     if(!method.empty() && id!=j.end()) {
         if(!(id->is_string() || id->is_number_integer()))return false;
         if(method=="item/commandExecution/requestApproval" || method=="item/fileChange/requestApproval"){
+            if(gameplay_){emit({{"id",*id},{"result",{{"decision","decline"}}}});return true;}
             // Approve only the exact command supplied with this request, never a
             // cached parent command or a request for broader/network permissions.
             const auto hasContext=[&](const char* key){return p.contains(key) && !p[key].is_null();};
@@ -155,6 +166,7 @@ bool Protocol::ingest(std::string_view line){
         if(type=="agentMessage" && method=="item/completed"){
             const auto text=field(item,"text");if(text.size()>262144)return false;
             if(!text.empty())agentMessage(itemId,text,false);
+            if(gameplay_ && !text.empty())state.response=text;
         }
         if(type=="commandExecution")details=field(item,"command");
         else if(type=="fileChange" && item.contains("changes") && item["changes"].is_array()) {
@@ -179,6 +191,7 @@ bool Protocol::ingest(std::string_view line){
     else if(method=="turn/completed") {
         state.busy=false;state.turn.clear();state.approvals.clear();items_.clear();
         const auto& turn=object(p,"turn");const auto status=field(turn,"status");
+        state.turnStatus=status;
         state.status=status=="completed"?"Completed":status=="interrupted"?"Interrupted":"Failed: "+field(object(turn,"error"),"message");
     } else if(method=="account/login/completed") {
         if(p.contains("success") && p["success"]==true) {

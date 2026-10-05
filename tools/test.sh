@@ -8,3 +8,5 @@ ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic tests/markdown_test.cpp 
 build/tests/markdown
 ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp tests/language_test.cpp -o build/tests/language
 build/tests/language
+${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp src/ingame.cpp tests/ingame_test.cpp -o build/tests/ingame
+build/tests/ingame

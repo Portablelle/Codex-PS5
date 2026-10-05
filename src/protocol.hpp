@@ -18,19 +18,22 @@ struct State {
     std::deque<Message> messages;
     std::uint64_t chatRevision=1;
     std::uint64_t revision=1;
+    std::string turnStatus;
 };
 class Protocol {
 public:
+    explicit Protocol(bool gameplay=false):gameplay_(gameplay){}
     State state;
     std::deque<std::string> outgoing;
     void begin();
     void disconnect();
     bool ingest(std::string_view line);
     void login();
-    void submit(std::string_view text);
+    bool submit(std::string_view text,std::string_view imagePath={});
     void interrupt();
     void decide(bool accept);
 private:
+    bool gameplay_=false;
     int next_=1;
     std::map<int,std::string> pending_;
     std::map<std::string,std::string> items_;
