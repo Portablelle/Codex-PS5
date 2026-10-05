@@ -149,7 +149,7 @@ bool Protocol::ingest(std::string_view line){
                 state.status="Sign in on your phone using the displayed code.";
             } else if(requestMethod=="account/read") {
                 state.authenticated=r.contains("account") && r["account"].is_object();
-                state.status=state.authenticated?"Ready":"L1: sign in to ChatGPT";
+                state.status=state.authenticated?"Ready":"\uE000: sign in to ChatGPT";
                 startThread();
             }
         }

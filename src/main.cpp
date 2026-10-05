@@ -129,7 +129,7 @@ bool draw(Canvas& c) noexcept {
     if(pressed || !text.empty() || state.revision!=lastProtocol || mic.status!=lastMic){++uiRevision;lastProtocol=state.revision;lastMic=mic.status;}
     if(!c.needs_update(uiRevision))return true;
     c.clear(bg);c.label(70,45,"Codex PS5",44,ink);c.label(70,105,assistant::language::tr(state.status),24,accent);
-    if(assistant::language::selectable)c.label(1030,105,assistant::language::tr("R1: language (French / English)"),20,muted);
+    if(assistant::language::selectable)c.label(1030,105,assistant::language::tr("\uE001: language (French / English)"),20,muted);
     c.label(1300,60,"GPT-6.1 SOL · LOW",24,muted);
     c.rounded(70,160,1780,keyboard?430:600,20,card);
     if(!state.code.empty()){
@@ -160,7 +160,7 @@ bool draw(Canvas& c) noexcept {
     const unsigned promptY=keyboard?610:790;
     c.rounded(70,promptY,1780,155,20,card);lines(c,105,promptY+18,composer.empty()?assistant::language::tr("Your prompt..."):composer,1710,3);
     c.label(75,980,assistant::language::tr(composerNotice.empty()?mic.status:composerNotice),24,accent);
-    c.label(75,1020,assistant::language::tr("Triangle: dictate   Square: keyboard   Options: send   L1: sign in   Circle: cancel"),20,muted);
+    c.label(75,1020,assistant::language::tr("△: dictate   □: keyboard   ☰: send   \uE000: sign in   ○: cancel"),20,muted);
     if(keyboard){
         for(unsigned i=0;i<keys.size();++i){unsigned x=75+(i%10)*177,y=780+(i/10)*35;
             if(i==key)c.rounded(x-3,y-1,167,32,6,rgb(39,91,71));c.label(x+5,y,assistant::language::tr(keys[i]),20,ink);}
@@ -170,7 +170,7 @@ bool draw(Canvas& c) noexcept {
         c.label(225,225,assistant::language::tr("Codex needs your approval"),32,accent);
         lines(c,225,295,state.approvals.front().description,1470,11,approvalScroll);
         c.label(225,730,approve?assistant::language::tr("  Decline          [ Allow ]"):assistant::language::tr("[ Decline ]          Allow"),32,ink);
-        c.label(225,800,assistant::language::tr("Up/down: read. Left/right: choose. Cross: confirm. Circle: decline."),24,muted);
+        c.label(225,800,assistant::language::tr("↑/↓: read. ←/→: choose. ×: confirm. ○: decline."),24,muted);
     }
     return true;
 }
