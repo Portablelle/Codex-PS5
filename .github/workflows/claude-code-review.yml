@@ -58,7 +58,7 @@ jobs:
                suggest a fix).
             4. Finish with ONE summary comment using `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
                If you found nothing, say so briefly ("No blocking issues found.").
-            Write all comments in French.
+            Write all comments in English.
           claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"'
           # Temporary: keep full output until reviews are confirmed working
           show_full_output: true
