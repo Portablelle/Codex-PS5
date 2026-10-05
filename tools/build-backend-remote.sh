@@ -10,3 +10,4 @@ rsync -az --exclude=.git --exclude=.deps --exclude=build --exclude=dist ./ "$hos
 ssh "$host" "cd '$remote' && python3 tools/prepare-backend.py && bash tools/build-backend-linux.sh"
 mkdir -p dist
 rsync -az "$host:$remote/dist/assistant-service.elf" dist/
+rsync -az "$host:$remote/dist/service-build.json" dist/

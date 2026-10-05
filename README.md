@@ -1,4 +1,4 @@
-# Codex PS5 0.0.1 — prototype natif
+# Codex PS5 0.0.2 — prototype natif
 
 Assistant pour les fichiers d'une PS5 jailbreakée, avec une interface native à
 la manette et une dictée locale. Ce projet n'est pas une application officielle
@@ -11,7 +11,7 @@ Deux composants tournent **sur la PS5** :
 
 * `assistant-service.elf` : moteur Codex 0.160.0 porté par
   [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli), adapté pour exposer
-  `codex app-server` sur une socket **127.0.0.1:49322**. Les outils shell et les
+  `codex app-server` sur une socket **127.0.0.2:49322**. Les outils shell et les
   modifications de fichiers s'exécutent localement.
 * `PPSA99105` : application graphique native, construite avec les outils de
   [OpenNOW PS5](https://github.com/Portablelle/opennow-ps5) et le renderer Botty+.
@@ -74,7 +74,7 @@ Après création du paquet avec `tools/package.py` :
 
 Le dossier de l'application doit contenir `assets/ggml-base.bin` (environ
 148 Mo). Le ZIP Folder produit par la compilation seule n'inclut pas encore
-le modèle ; utiliser le paquet final `codex-ps5-0.0.1.zip`.
+le modèle ; utiliser le paquet final `codex-ps5-0.0.2.zip`.
 
 ## Commandes
 
@@ -170,3 +170,7 @@ script de packaging. Les poids ne sont pas versionnés.
 
 Voir `THIRD_PARTY.md`, `LICENSE`, `licenses/` et les licences du snapshot
 `vendor/ps5-ai-cli`. Le source des adaptations et les scripts de compilation sont fournis.
+
+## Mises à jour via Botty+
+
+Avec Codex coché, LAUNCH installe et met à jour le titre natif, Whisper et le moteur avant son démarrage. Les téléchargements sont vérifiés par blocs de 1 Mio. Le dossier de travail et la connexion ChatGPT sont conservés. Fermer les applications natives avant LAUNCH ; les installations précédentes restent en sauvegarde. Le moteur 0.0.2 expose un contrôle local sur 127.0.0.1:49323 pour son état et son arrêt propre à vide. Le moteur antérieur nécessite un redémarrage complet après la première mise à jour.

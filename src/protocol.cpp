@@ -35,7 +35,7 @@ void Protocol::startThread(){
 }
 void Protocol::begin(){
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;
-    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.1"}}},
+    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.2"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){

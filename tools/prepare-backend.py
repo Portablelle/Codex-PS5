@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Produce the native app-server variant without editing the upstream snapshot."""
 from pathlib import Path
-import shutil
+import shutil,hashlib,json
 root=Path(__file__).resolve().parents[1]
 destination=root/'.deps/backend'
 shutil.copytree(root/'vendor/ps5-ai-cli',destination,dirs_exist_ok=True,
@@ -11,6 +11,12 @@ for name in ('df','ps','sysctl','tools'):
  shutil.copy2(root/f'backend/ps5-{name}.c',destination/f'platform/ps5-{name}.c')
 shutil.copy2(root/'backend/tool-compat.c',destination/'platform/tool-compat.c')
 shutil.copy2(root/'backend/runtime-tools.txt',destination/'platform/runtime-tools.txt')
+version=(root/'VERSION').read_text().strip()
+inputs=[root/'VERSION',root/'upstream-lock.json',*sorted((root/'backend').glob('*')), *sorted((root/'tools').glob('*')), *sorted((root/'src').glob('*'))]
+identity=hashlib.sha256(b''.join(p.relative_to(root).as_posix().encode()+b'\0'+p.read_bytes() for p in inputs if p.is_file())).hexdigest()
+(destination/'app/service-version.h').write_text(f'#define CODEX_PS5_VERSION {json.dumps(version)}\n#define CODEX_BUILD_ID {json.dumps(identity)}\n')
+(root/'dist').mkdir(exist_ok=True)
+(root/'dist/service-build.json').write_text(json.dumps({'version':version,'build':identity})+'\n')
 p=destination/'app/config.h'
 p.write_text(p.read_text().replace('"/data/ps5-ai-cli"','"/data/codex-ps5"'))
 p=destination/'app/entry.c'
