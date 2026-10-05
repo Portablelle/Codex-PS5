@@ -67,7 +67,7 @@ inline std::string tr(std::string_view english) {
         {"No voice detected. Check the mute button.","Aucune voix detectee. Verifie le bouton mute."},
         {"Transcribing locally on PS5...","Transcription locale sur PS5..."},
         {"Not enough memory for local dictation. You can still use the keyboard.","Memoire insuffisante pour la dictee locale. Le clavier reste disponible."},
-        {"Whisper model missing or unreadable in assets/ggml-base.bin","Modele Whisper absent ou illisible dans assets/ggml-base.bin"},
+        {"Whisper model missing or unreadable in assets/ggml-small-q5_1.bin","Modele Whisper absent ou illisible dans assets/ggml-small-q5_1.bin"},
         {"Transcription failed","Transcription echouee"},
         {"Dictation too long","Dictee trop longue"},
         {"Dictation ready: review, then press ☰ to send","Dictee prete : relis puis ☰ pour envoyer"},
