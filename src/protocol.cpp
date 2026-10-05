@@ -152,7 +152,7 @@ bool Protocol::ingest(std::string_view line){
                 state.status="Connecte-toi sur un telephone avec le code affiche.";
             } else if(requestMethod=="account/read") {
                 state.authenticated=r.contains("account") && r["account"].is_object();
-                state.status=state.authenticated?"Pret":"L1 : connexion au compte ChatGPT";
+                state.status=state.authenticated?"Pret":"\uE000 : connexion au compte ChatGPT";
                 startThread();
             }
         }

@@ -25,7 +25,7 @@ void Voice::toggle(){
     {std::lock_guard lock(mutex_);if(state_.recording){stop_=true;return;}if(state_.working)return;}
     if(worker_){botty::platform::joinWorker(worker_);worker_=nullptr;}
     stop_=false;cancelled_=false;
-    {std::lock_guard lock(mutex_);state_.recording=true;state_.status="Enregistrement local (30 s max). Triangle : terminer";}
+    {std::lock_guard lock(mutex_);state_.recording=true;state_.status="Enregistrement local (30 s max). △ : terminer";}
     if(!botty::platform::startWorker(run,this,&worker_)){
         std::lock_guard lock(mutex_);state_.recording=false;state_.status="Impossible de demarrer le micro";
     }
@@ -84,6 +84,6 @@ void Voice::record(){
         if(segment)text+=segment;if(text.size()>16384){finish("Dictee trop longue");return;}
     }
     if(cancelled_){finish("Dictee annulee");return;}
-    {std::lock_guard lock(mutex_);state_.transcript=std::move(text);state_.recording=state_.working=false;state_.status="Dictee prete : relis puis Options pour envoyer";}
+    {std::lock_guard lock(mutex_);state_.transcript=std::move(text);state_.recording=state_.working=false;state_.status="Dictee prete : relis puis ☰ pour envoyer";}
 }
 }
