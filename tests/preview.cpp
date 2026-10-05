@@ -13,7 +13,7 @@ namespace assistant {
 bool Client::start(){
     protocol_.state.connected=protocol_.state.ready=protocol_.state.authenticated=true;
     protocol_.state.thread="preview";protocol_.state.status="Ready — simulated preview session";
-    protocol_.state.response="I can help you organize PS5 files.\n\nDictate a request with Triangle or open the keyboard with Square.\n\nWhen Codex asks for approval, review the command or change before confirming.";
+    protocol_.state.response="I can help you organize PS5 files.\n\nDictate a request with △ or open the keyboard with □.\n\nWhen Codex asks for approval, review the command or change before confirming.";
     protocol_.state.messages={{false,"I can check the available space on mounted volumes.","intro"},
         {true,"How much space is left on my PS5 and external drive?",{}},
         {false,"- **PS5 internal storage** : **510.4 GiB** available.\n- **External drive** : **575.5 GiB** available.\n\nVolumes checked with `df -h`.","reply"}};

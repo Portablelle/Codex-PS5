@@ -501,8 +501,8 @@ static unsigned nextGlyph(std::string_view& s) noexcept {
             ch=(ch<<6)|(static_cast<unsigned char>(s.front())&63);s.remove_prefix(1);
         }
     }
-    constexpr unsigned extra[]={0x152,0x153,0x2013,0x2014,0x2019,0x2026};
-    for(unsigned i=0;i<6;++i)if(ch==extra[i])return 256+i;
+    for(unsigned i=0;i<botty::font::extraCodes.size();++i)
+        if(ch==botty::font::extraCodes[i])return 256+i;
     return ch>=32&&ch<=255?ch:'?';
 }
 unsigned Canvas::text_width(std::string_view value,unsigned size) const noexcept {
