@@ -89,7 +89,16 @@ le modèle ; utiliser le paquet final `codex-ps5-0.0.2.zip`.
 | Haut / bas | Parcourir la réponse, lorsque le clavier est fermé |
 
 Les demandes d'approbation pour les commandes et changements de fichiers
-s'affichent dans une fenêtre, avec défilement des détails. Les changements de
+s'affichent dans une fenêtre, avec défilement des détails. Le client accepte
+automatiquement les commandes simples de consultation reconnues : `ls`, `cat`,
+`head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`, `pwd`, `uname`, `whoami`,
+`readlink`, `ps5-tools` et la lecture de propriétés nommées avec `sysctl`.
+Cette acceptation vaut uniquement pour la commande demandée, jamais pour toute
+la session. Les scripts, chemins d'exécutables arbitraires, commandes composées,
+redirections, expansions shell et demandes de permissions supplémentaires
+restent soumis à confirmation, même si leur intention semble être une lecture.
+Une commande absente de la demande n'est jamais acceptée automatiquement à partir
+des détails d'une commande précédente. Les changements de
 fichiers montrent le chemin et le diff transmis par Codex. Un détail manquant
 ou trop long ne peut pas être approuvé dans ce prototype. Le choix initial est **Refuser**. L'application ne
 réutilise pas une pression de Croix antérieure pour approuver une nouvelle action.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "protocol.hpp"
+#include "read_only_command.hpp"
 #include <algorithm>
 namespace assistant {
 std::string field(const Json& j,const char* key) {
@@ -25,6 +26,8 @@ void Protocol::startThread(){
                     {"sandbox","danger-full-access"},{"developerInstructions",
                     "You are an assistant running locally on a jailbroken PS5. Answer in French. "
                     "Inspect before modifying. Work on user files in /data or /mnt/usb*. "
+                    "Perform read-only inspection without asking the user for confirmation. "
+                    "Prefer single direct commands from the bundled toolbox for inspection. "
                     "Do not change firmware, /system, exploit settings, running services, or delete files "
                     "unless the user explicitly asks. Avoid displaying tokens or credentials. "
                     "Discover the installed command capabilities with ps5-tools when needed. "
@@ -86,6 +89,16 @@ bool Protocol::ingest(std::string_view line){
     if(!method.empty() && id!=j.end()) {
         if(!(id->is_string() || id->is_number_integer()))return false;
         if(method=="item/commandExecution/requestApproval" || method=="item/fileChange/requestApproval"){
+            // Approve only the exact command supplied with this request, never a
+            // cached parent command or a request for broader/network permissions.
+            const auto hasContext=[&](const char* key){return p.contains(key) && !p[key].is_null();};
+            if(method=="item/commandExecution/requestApproval" &&
+               (!hasContext("kind") || field(p,"kind")=="command") &&
+               !hasContext("additionalPermissions") && !hasContext("networkApprovalContext") &&
+               !hasContext("grantRoot") && readOnlyCommand(field(p,"command"))){
+                emit({{"id",*id},{"result",{{"decision","accept"}}}});
+                ++state.revision;return true;
+            }
             if(state.approvals.size()>=16)return false;
             const auto cached=items_.find(field(p,"itemId"));
             std::string description=field(p,"command");
