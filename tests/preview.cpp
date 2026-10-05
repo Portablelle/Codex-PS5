@@ -22,12 +22,14 @@ bool Client::start(){
     return true;
 }
 void Client::stop(){}State Client::snapshot(){return protocol_.state;}
+void Client::changeLanguage(){protocol_.changeLanguage();}
 void Client::login(){}void Client::submit(std::string){}void Client::interrupt(){}void Client::decide(bool){}
 void Voice::toggle(){}void Voice::cancel(){}void Voice::shutdown(){}
 VoiceState Voice::snapshot(){return {};}
 std::string Voice::takeTranscript(){static bool first=true;if(first){first=false;return "Liste les fichiers du dossier /data et aide-moi à les organiser.";}return {};}
 }
 namespace botty::platform {
+int systemLanguage() noexcept {return std::getenv("PREVIEW_ENGLISH")?1:2;}
 std::uint64_t now() noexcept {return 0;}void sleep(unsigned) noexcept {}void log(const char*) noexcept {}
 }
 extern "C" {

@@ -30,13 +30,23 @@ Les réponses Codex nécessitent Internet et un compte disposant de l'accès Cod
 Le modèle sélectionné est **GPT-6.1 SOL**, avec l'effort de raisonnement **low**.
 Il n'y a pas de connexion SSH dans l'application.
 
+## Langue
+
+Au lancement, la langue système de la PS5 détermine celle de Codex : français
+(France ou Canada) pour une console en français, anglais pour toutes les autres
+langues ou si la lecture du réglage échoue. Sur une console en français uniquement,
+**R1** bascule entre français et anglais lorsque Codex et le micro sont au repos.
+Le choix vaut pour la session ; le prochain lancement reprend la langue système.
+L’interface, la dictée et les consignes de réponse suivent ce choix. La conversation
+est conservée, et les messages déjà reçus restent dans leur langue d’origine.
+
 ## Dictée
 
 Triangle démarre la capture AudioIn de l'utilisateur PS5, normalement le micro
 DualSense. Un casque peut changer la route audio. Triangle termine la capture,
 limitée à 30 secondes. Rond annule.
 
-Whisper.cpp 1.8.3 transcrit en français sur le CPU de la PS5, avec le modèle
+Whisper.cpp 1.8.3 transcrit dans la langue sélectionnée (français ou anglais) sur le CPU de la PS5, avec le modèle
 multilingue `base`. L'audio reste en mémoire dans la console ; aucune API de
 transcription ni clé supplémentaire. Le texte apparaît dans le prompt pour
 relecture. **Options envoie le texte à Codex.** Le texte envoyé est donc traité
@@ -85,6 +95,7 @@ le modèle ; utiliser le paquet final `codex-ps5-0.0.2.zip`.
 | Croix | Saisir une touche / confirmer un choix |
 | Options | Envoyer le prompt |
 | L1 | Se connecter à ChatGPT |
+| R1 | Français / anglais, uniquement sur une PS5 en français et au repos |
 | Rond | Annuler la dictée / interrompre Codex / refuser une action |
 | Haut / bas | Parcourir la réponse, lorsque le clavier est fermé |
 

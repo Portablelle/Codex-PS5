@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 namespace botty::platform {
+int systemLanguage() noexcept;
 std::uint64_t now() noexcept;
 void sleep(unsigned microseconds) noexcept;
 void log(const char* message) noexcept;

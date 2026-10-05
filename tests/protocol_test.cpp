@@ -1,6 +1,7 @@
 #include "../src/protocol.hpp"
 #include "../src/read_only_command.hpp"
 #include <cassert>
+#include "../src/language.hpp"
 #include <iostream>
 using namespace assistant;
 int main(){
@@ -17,6 +18,7 @@ int main(){
                       "cat 'unfinished", "sysctl kern.hostname=x", "sysctl -w kern.hostname",
                       "sysctl", "sysctl -n", "cat /data/a\r"})
         assert(!readOnlyCommand(command));
+    language::initialize(2);
     Protocol p;p.begin();assert(p.outgoing.size()==1);
     assert(p.ingest(R"({"id":1,"result":{}})"));assert(p.state.ready);
     assert(p.outgoing.size()==3);
