@@ -18,19 +18,36 @@ int main(){
     assert(std::string(language::code())=="en");
     Protocol p;p.begin();p.ingest(R"({"id":1,"result":{}})");
     p.ingest(R"({"id":2,"result":{"account":{}}})");
-    assert(Json::parse(p.outgoing.back())["params"]["developerInstructions"].get<std::string>().starts_with("Answer in English."));
+    assert(Json::parse(p.outgoing.back())["params"]["developerInstructions"].get<std::string>().starts_with("Follow the response language requested in the current user message."));
+    language::initialize(2);
+    auto size=p.outgoing.size();p.changeLanguage();
+    assert(language::isFrench() && size==p.outgoing.size()); // thread/start still pending
     p.ingest(R"({"id":3,"result":{"thread":{"id":"existing"}}})");
-    auto size=p.outgoing.size();p.changeLanguage();assert(size==p.outgoing.size());
+    language::initialize(1);
+    size=p.outgoing.size();p.changeLanguage();assert(size==p.outgoing.size());
     language::initialize(2);p.state.messages.push_back({true,"Keep this message",{}});
     p.state.busy=true;p.changeLanguage();assert(language::isFrench());p.state.busy=false;
-    p.changeLanguage();assert(!language::isFrench() && !p.state.ready);
-    auto resume=Json::parse(p.outgoing.back());assert(resume["method"]=="thread/resume");
-    assert(resume["params"]["threadId"]=="existing");
-    assert(resume["params"]["developerInstructions"].get<std::string>().starts_with("Answer in English."));
-    size=p.outgoing.size();p.submit("Wait");p.changeLanguage();assert(size==p.outgoing.size());
-    p.ingest(Json({{"id",resume["id"]},{"result",Json::object()}}).dump());
-    assert(p.state.ready && p.state.messages.front().text=="Keep this message");
-    p.changeLanguage();resume=Json::parse(p.outgoing.back());assert(language::isFrench());
-    p.ingest(Json({{"id",resume["id"]},{"error",{{"message","Failed"}}}}).dump());
-    assert(!language::isFrench() && p.state.ready);
+    // A fresh thread has no rollout yet: toggling must not send thread/resume.
+    size=p.outgoing.size();
+    for(int i=0;i<5;++i)p.changeLanguage();
+    assert(!language::isFrench() && p.state.ready && size==p.outgoing.size());
+    assert(p.state.thread=="existing" && p.state.messages.front().text=="Keep this message");
+    for(int i=0;i<4;++i){
+        const bool french=language::isFrench();
+        p.submit("Continue");
+        auto turn=Json::parse(p.outgoing.back());
+        assert(turn["method"]=="turn/start" && turn["params"]["threadId"]=="existing");
+        assert(turn["params"]["input"][0]["text"]==std::string(french?"Answer in French.\n\n":"Answer in English.\n\n")+"Continue");
+        assert(p.state.messages.back().text=="Continue");
+        size=p.outgoing.size();p.changeLanguage();
+        assert(language::isFrench()==french && size==p.outgoing.size());
+        p.ingest(Json({{"id",turn["id"]},{"result",{{"turn",{{"id","turn"}}}}}}).dump());
+        p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})");
+        p.changeLanguage();
+        assert(language::isFrench()!=french && p.state.ready && size==p.outgoing.size());
+        assert(p.state.thread=="existing" && p.state.messages.front().text=="Keep this message");
+    }
+    p.state.approvals.push_back({"approval","command","rm file",true});
+    p.changeLanguage();assert(!language::isFrench());p.state.approvals.clear();
+    p.disconnect();p.changeLanguage();assert(!language::isFrench());
 }
