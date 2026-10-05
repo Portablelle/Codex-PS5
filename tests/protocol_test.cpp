@@ -1,9 +1,23 @@
 #include "../src/protocol.hpp"
+#include "../src/read_only_command.hpp"
 #include <cassert>
 #include "../src/language.hpp"
 #include <iostream>
 using namespace assistant;
 int main(){
+    for(auto command:{"ls -la /data", "cat '/data/my notes.txt'", "head -n 20 /data/log.txt",
+                      "tail -n 10 /data/log.txt", "wc -l /data/log.txt", "grep error /data/log.txt",
+                      "du -s /data", "df -h", "ps -A", "pwd", "uname -a", "whoami",
+                      "readlink /data/link", "ps5-tools", "sysctl -n kern.hostname", "sysctl -b kern.proc"})
+        assert(readOnlyCommand(command));
+    for(auto command:{"", "rm /data/a", "mv a b", "chmod 777 a", "find /data -delete",
+                      "sed -i s/a/b/ a", "sort -o a a", "tee a", "sh -c 'ls'", "env ls",
+                      "/data/cat a", "./ls", "PATH=/data ls", "ls; rm a", "ls && rm a",
+                      "ls | tee a", "cat a > b", "cat a 2>>b", "cat <a", "ls\nrm a",
+                      "cat $(touch a)", "cat `touch a`", "ls $HOME", "ls *", "ls \\\nrm a",
+                      "cat 'unfinished", "sysctl kern.hostname=x", "sysctl -w kern.hostname",
+                      "sysctl", "sysctl -n", "cat /data/a\r"})
+        assert(!readOnlyCommand(command));
     language::initialize(2);
     Protocol p;p.begin();assert(p.outgoing.size()==1);
     assert(p.ingest(R"({"id":1,"result":{}})"));assert(p.state.ready);
@@ -18,6 +32,20 @@ int main(){
     auto turnRequest=Json::parse(p.outgoing.back())["params"];
     assert(turnRequest["model"]=="gpt-6.1-sol" && turnRequest["effort"]=="low");
     assert(p.state.messages.size()==1 && p.state.messages.front().user && p.state.messages.front().text=="Déplace le fichier");
+    auto autoBefore=p.outgoing.size();
+    assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"read-1","params":{"command":"df -h"}})"));
+    assert(p.state.approvals.empty() && p.outgoing.size()==autoBefore+1);
+    auto autoReply=Json::parse(p.outgoing.back());
+    assert(autoReply["id"]=="read-1" && autoReply["result"]["decision"]=="accept");
+    for(auto context:{R"({"kind":"stdin"})", R"({"additionalPermissions":{"fileSystem":{"write":["/data"]}}})",
+                      R"({"networkApprovalContext":{"host":"example.com"}})", R"({"grantRoot":"/data"})"}){
+        auto params=Json::parse(context);params["command"]="cat /data/note.txt";
+        assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","context"},{"params",params}}).dump()));
+        assert(p.state.approvals.size()==1);p.decide(false);
+    }
+    assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"commandExecution","id":"read-parent","command":"ls /data"}}})"));
+    assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"cached","params":{"itemId":"read-parent"}})"));
+    assert(p.state.approvals.size()==1);p.decide(false);
     assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"commandExecution","id":"parent-command","command":"parent-script"}}})"));
     assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"approval-1","params":{"itemId":"parent-command","command":"mv a b"}})"));
     assert(p.state.approvals.front().description=="mv a b");
