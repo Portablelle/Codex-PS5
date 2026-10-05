@@ -46,20 +46,29 @@ jobs:
             Review this pull request for correctness. Do the work yourself, do not
             spawn sub-agents and do not wait for background tasks.
 
-            1. Run `gh pr diff ${{ github.event.pull_request.number }}` and, when needed,
-               `gh pr view ${{ github.event.pull_request.number }}` to understand the change.
-               Read surrounding files in the checkout when the diff alone is not enough.
+            1. Run `gh pr view ${{ github.event.pull_request.number }}` and
+               `gh pr diff ${{ github.event.pull_request.number }}` to see the change. The
+               diff output can be truncated: run `gh pr diff ${{ github.event.pull_request.number }} --name-only`
+               to list every changed file, and read EVERY changed file in the checkout
+               (in full when the diff was cut off). Do not skip files, including tests
+               and docs.
             2. Look for real problems only: bugs, crashes, wrong logic, security issues,
-               missing error handling, race conditions, broken edge cases. Skip style
-               nitpicks and anything a linter would catch. Only report issues you are
-               confident about.
-            3. For each issue, post an inline comment on the exact line with
+               missing error handling, race conditions, resource leaks, broken edge cases.
+               Skip style nitpicks and anything a linter would catch. Only report issues
+               you are confident about, and verify each one against the surrounding code
+               before reporting it.
+            3. Check the tests: is the new behavior covered, and do the tests really
+               assert what their names claim? Flag missing coverage for risky logic.
+            4. For each issue, post an inline comment on the exact line with
                mcp__github_inline_comment__create_inline_comment (explain the problem and
                suggest a fix).
-            4. Finish with ONE summary comment using `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
-               If you found nothing, say so briefly ("No blocking issues found.").
+            5. Finish with ONE summary comment using
+               `gh pr comment ${{ github.event.pull_request.number }} --body "..."` containing:
+               - a verdict (issues found / no blocking issues found),
+               - the list of files you reviewed and any you could not review (with why),
+               - what you did NOT verify (for example: code was not built, tests were not run).
             Write all comments in English.
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"'
+          claude_args: '--model claude-sonnet-5-5 --effort medium --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"'
           # Temporary: keep full output until reviews are confirmed working
           show_full_output: true
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
