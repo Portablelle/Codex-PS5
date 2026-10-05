@@ -1,0 +1,9 @@
+.deps/
+build/
+dist/
+.env
+**/AGENTS.md
+**/__pycache__/
+*.log
+backups/
+.env.*

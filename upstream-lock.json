@@ -1,0 +1,26 @@
+{
+  "ps5_ai_cli": {
+    "repository": "https://github.com/saawant12/ps5-ai-cli",
+    "commit": "eb1d494f18a99adcedfd40cf45ba8af1eac18b61"
+  },
+  "json": {
+    "version": "3.12.0",
+    "url": "https://raw.githubusercontent.com/nlohmann/json/v3.12.0/single_include/nlohmann/json.hpp",
+    "sha256": "aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63"
+  },
+  "whisper": {
+    "repository": "https://github.com/ggml-org/whisper.cpp",
+    "version": "1.8.3",
+    "commit": "2eeeba56e9edd762b4b38467bab96c2517163158"
+  },
+  "native_platform": {
+    "repository": "https://github.com/Portablelle/opennow-ps5",
+    "commit": "93040397d39dc81f62546aa03289af87afc8d9a0",
+    "snapshot_sha256": "f7b93a7a74ced86c8c7dfbdd59384d87961d834688c36b81898d1ec0b1fdfd71"
+  },
+  "whisper_model": {
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+    "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+    "bytes": 147951465
+  }
+}
