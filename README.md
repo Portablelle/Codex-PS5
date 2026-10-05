@@ -100,6 +100,11 @@ use the final `codex-ps5-0.0.2.zip` package.
 
 ## Controls
 
+An experimental in-game voice companion session core and a host probe are
+available; see [INGAME.md](INGAME.md). System-wide overlay, game capture,
+resident session ownership, and spoken playback are not connected on PS5 yet.
+No new controller shortcut is enabled in the native application.
+
 | Button | Action |
 | --- | --- |
 | Triangle | Start / finish dictation |

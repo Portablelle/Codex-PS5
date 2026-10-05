@@ -26,7 +26,11 @@ with tempfile.TemporaryDirectory(prefix='codex-ps5-rpc-') as home:
   result=response(3)
   assert 'result' in result,result
   assert result['result']['thread']['id']
-  print('Codex app-server: initialize, account/read and thread/start accepted; no prompt sent')
+  send({'id':4,'method':'thread/start','params':{'cwd':home,'approvalPolicy':'never','sandbox':'read-only','developerInstructions':'PS5 gameplay companion contract test; no model turn will be started.'}})
+  result=response(4)
+  assert 'result' in result,result
+  assert result['result']['thread']['id']
+  print('Codex app-server: initialize, account/read, normal and gameplay thread/start accepted; no prompt sent')
  finally:
   p.terminate()
   try:p.wait(timeout=5)
