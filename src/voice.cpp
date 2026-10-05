@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // AudioIn routing based on BlackBearReloaded's GPL-3.0 microphone example.
 #include "voice.hpp"
-#include "language.hpp"
 #include "platform.hpp"
 #include "whisper.h"
 #include <array>
@@ -72,7 +71,7 @@ void Voice::record(){
     if(!context_){finish("Whisper model missing or unreadable in assets/ggml-base.bin");return;}
     botty::platform::log("Whisper context initialized");
     auto params=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    params.n_threads=4;params.language=language::code();params.translate=false;
+    params.n_threads=4;params.language="auto";params.translate=false;
     params.print_realtime=params.print_progress=params.print_timestamps=params.print_special=false;
     params.no_context=true;params.suppress_blank=true;params.suppress_nst=true;
     params.abort_callback=[](void* p){return static_cast<Voice*>(p)->cancelled_.load();};params.abort_callback_user_data=this;

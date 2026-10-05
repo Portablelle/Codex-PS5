@@ -6,7 +6,6 @@ namespace platform=botty::platform;
 bool Client::start(){return platform::startWorker(run,this,&worker_);}
 void Client::stop(){{std::lock_guard lock(mutex_);stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
-void Client::changeLanguage(){std::lock_guard lock(mutex_);protocol_.changeLanguage();}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
 void Client::submit(std::string text){std::lock_guard lock(mutex_);protocol_.submit(text);}
 void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
