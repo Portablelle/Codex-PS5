@@ -18,7 +18,7 @@ void Client::loop(){
         int fd=platform::connectLocal();
         if(fd<0){
             {std::lock_guard lock(mutex_);
-             const std::string status="Moteur absent : lance assistant-service dans Payload Manager";
+             const std::string status="Engine unavailable: launch assistant-service in Payload Manager";
              if(protocol_.state.status!=status){protocol_.state.status=status;++protocol_.state.revision;}}
             platform::sleep(500000);continue;
         }
