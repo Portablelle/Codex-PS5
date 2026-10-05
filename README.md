@@ -116,7 +116,10 @@ scrollable details. The client automatically accepts recognized simple
 inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,
 `pwd`, `uname`, `whoami`, `readlink`, `ps5-tools` and named property reads with
 `sysctl`. This acceptance applies only to the requested command, never to the
-entire session. Scripts, arbitrary executable paths, compound commands,
+entire session. The bundled runtime shell's `-c` and `-lc` wrappers are also
+accepted when their sole command argument passes the same inspection filter
+(for example, `…/runtime/tools-<32-hex-id>/sh -lc 'df -h'`). Other shell paths,
+nested wrappers, scripts, arbitrary executable paths, compound commands,
 redirections, shell expansions and requests for additional permissions still
 require confirmation, even if their apparent intent is to read data.
 A command missing from the request is never automatically accepted based on

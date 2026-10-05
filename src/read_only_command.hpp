@@ -5,8 +5,9 @@
 #include <vector>
 namespace assistant {
 // Deliberately accept only a single literal command. This is not a shell parser:
-// expansions, escapes, operators and wrappers must go through manual approval.
-inline bool readOnlyCommand(std::string_view command) {
+// expansions, escapes and operators must go through manual approval. The
+// app-server's bundled shell wrapper is inspected as one additional layer.
+inline bool readOnlyCommand(std::string_view command, bool allowRuntimeShell=true) {
     if(command.empty() || command.size()>8192)return false;
     std::vector<std::string> words;
     std::string word;char quote=0;bool started=false;
@@ -29,6 +30,16 @@ inline bool readOnlyCommand(std::string_view command) {
     if(started)words.push_back(word);
     if(words.empty())return false;
     const auto& name=words.front();
+    constexpr std::string_view runtimePrefix="/data/codex-ps5/runtime/tools-";
+    if(allowRuntimeShell && name.starts_with(runtimePrefix) && name.ends_with("/sh") &&
+       name.size()==runtimePrefix.size()+32+3 && words.size()==3 &&
+       (words[1]=="-c" || words[1]=="-lc")){
+        const auto identity=std::string_view(name).substr(runtimePrefix.size(),32);
+        if(identity.find_first_not_of("0123456789abcdef")!=std::string_view::npos)return false;
+        // Reparse the decoded shell argument: quoting must not turn a script or
+        // another wrapper into an automatically accepted inspection command.
+        return readOnlyCommand(words[2],false);
+    }
     // Bare names resolve through the bundled runtime PATH. Arbitrary executable
     // paths (including a different binary named cat) are never trusted here.
     constexpr std::string_view readers[]={"ls","cat","head","tail","wc","grep","du","df","ps",
