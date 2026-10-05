@@ -14,6 +14,7 @@ int sceKernelClose(int);
 int scePthreadCreate(void**,const void*,void* (*)(void*),void*,const char*);
 int scePthreadJoin(void*,void**);
 int sceNetInit();
+int sceSystemServiceParamGetInt(int,int*);
 int* sceNetErrnoLoc();
 int sceNetSocket(const char*,int,int,int);
 int sceNetSetsockopt(int,int,int,const void*,std::uint32_t);
@@ -23,6 +24,10 @@ int sceNetRecv(int,void*,std::size_t,int);
 int sceNetSocketClose(int);
 }
 namespace botty::platform {
+int systemLanguage() noexcept {
+    int value=-1;
+    return sceSystemServiceParamGetInt(1,&value)==0?value:-1;
+}
 std::uint64_t now() noexcept {return sceKernelGetProcessTime();}
 void sleep(unsigned us) noexcept {(void)sceKernelUsleep(us);}
 void log(const char* message) noexcept {

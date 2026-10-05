@@ -24,6 +24,7 @@ public:
     State state;
     std::deque<std::string> outgoing;
     void begin();
+    void changeLanguage();
     void disconnect();
     bool ingest(std::string_view line);
     void login();

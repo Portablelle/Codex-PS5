@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "protocol.hpp"
+#include "language.hpp"
 #include <algorithm>
 namespace assistant {
 std::string field(const Json& j,const char* key) {
@@ -16,14 +17,9 @@ void Protocol::request(const char* method,Json params){
     const int id=next_++;pending_[id]=method;
     emit({{"id",id},{"method",method},{"params",std::move(params)}});
 }
-void Protocol::startThread(){
-    if(!state.authenticated || !state.thread.empty())return;
-    for(const auto& item:pending_)if(item.second=="thread/start")return;
-    request("thread/start",{{"model","gpt-6.1-sol"},{"allowProviderModelFallback",false},
-                    {"config",{{"model_reasoning_effort","low"}}},
-                    {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy","untrusted"},
-                    {"sandbox","danger-full-access"},{"developerInstructions",
-                    "You are an assistant running locally on a jailbroken PS5. Answer in French. "
+static std::string instructions(){
+    return std::string(language::isFrench()?"Answer in French. ":"Answer in English. ")+
+    "You are an assistant running locally on a jailbroken PS5. "
                     "Inspect before modifying. Work on user files in /data or /mnt/usb*. "
                     "Do not change firmware, /system, exploit settings, running services, or delete files "
                     "unless the user explicitly asks. Avoid displaying tokens or credentials. "
@@ -31,7 +27,26 @@ void Protocol::startThread(){
                     "Choose your own commands and inspect their results. Base claims about running services "
                     "on live observations; installed files alone do not establish that a process is running. "
                     "Report unsupported capabilities honestly instead of guessing. "
-                    "Do not mention implementation details or sandboxing unless asked."}});
+                    "Do not mention implementation details or sandboxing unless asked.";
+}
+void Protocol::changeLanguage(){
+    if(state.busy || !state.approvals.empty() || !state.ready)return;
+    for(const auto& entry:pending_)if(entry.second=="thread/start" || entry.second=="thread/resume")return;
+    if(!language::toggle())return;
+    if(!state.thread.empty()) {
+        state.ready=false;
+        request("thread/resume",{{"threadId",state.thread},{"developerInstructions",instructions()}});
+    }
+    ++state.revision;
+}
+void Protocol::startThread(){
+    if(!state.authenticated || !state.thread.empty())return;
+    for(const auto& item:pending_)if(item.second=="thread/start")return;
+    request("thread/start",{{"model","gpt-6.1-sol"},{"allowProviderModelFallback",false},
+                    {"config",{{"model_reasoning_effort","low"}}},
+                    {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy","untrusted"},
+                    {"sandbox","danger-full-access"},{"developerInstructions",
+                    instructions()}});
 }
 void Protocol::begin(){
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;
@@ -92,15 +107,15 @@ bool Protocol::ingest(std::string_view line){
             if(description.empty() && cached!=items_.end())description=cached->second;
             const bool detailAvailable=!description.empty() && field(p,"kind")!="stdin";
             const auto cwd=field(p,"cwd"),reason=field(p,"reason"),root=field(p,"grantRoot");
-            if(!cwd.empty())description+="\nDossier : "+cwd;
-            if(!root.empty())description+="\nRacine demandee : "+root;
-            if(!reason.empty())description+="\nMotif : "+reason;
-            if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+="\nPermissions : "+p["additionalPermissions"].dump();
+            if(!cwd.empty())description+=language::tr("\nDossier : ")+cwd;
+            if(!root.empty())description+=language::tr("\nRacine demandee : ")+root;
+            if(!reason.empty())description+=language::tr("\nMotif : ")+reason;
+            if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+=language::tr("\nPermissions : ")+p["additionalPermissions"].dump();
             const bool complete=detailAvailable && description.size()<=8192;
-            if(!complete)description="Details incomplets ou trop longs : refus uniquement.\n"+description;
+            if(!complete)description=language::tr("Details incomplets ou trop longs : refus uniquement.\n")+description;
             state.approvals.push_back({*id,method,description.substr(0,8192),complete});
             state.status="Action en attente de confirmation";
-        } else emit({{"id",*id},{"error",{{"code",-32601},{"message","Interaction non prise en charge par le prototype PS5"}}}});
+        } else emit({{"id",*id},{"error",{{"code",-32601},{"message",language::tr("Interaction non prise en charge par le prototype PS5")}}}});
     } else if(method.empty() && id!=j.end() && id->is_number_integer()) {
         if(!id->is_number_unsigned() && id->get<std::int64_t>()<0)return false;
         const auto wide=id->get<std::uint64_t>();if(wide>2147483647)return false;
@@ -109,6 +124,7 @@ bool Protocol::ingest(std::string_view line){
         if(j.contains("error")) {
             state.status="Erreur: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start")state.busy=false;
+            if(requestMethod=="thread/resume"){language::toggle();state.ready=true;}
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {
@@ -116,6 +132,7 @@ bool Protocol::ingest(std::string_view line){
                 request("account/read",{{"refreshToken",false}});
 
             } else if(requestMethod=="thread/start")state.thread=field(object(r,"thread"),"id");
+            else if(requestMethod=="thread/resume"){state.ready=true;state.status="Pret";}
             else if(requestMethod=="turn/start")state.turn=field(object(r,"turn"),"id");
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");
@@ -141,7 +158,7 @@ bool Protocol::ingest(std::string_view line){
         if(type=="commandExecution")details=field(item,"command");
         else if(type=="fileChange" && item.contains("changes") && item["changes"].is_array()) {
             for(const auto& change:item["changes"]){
-                details+="Fichier : "+field(change,"path")+"\n"+field(change,"diff")+"\n";
+                details+=language::tr("Fichier : ")+field(change,"path")+"\n"+field(change,"diff")+"\n";
                 if(details.size()>8192)break;
             }
         }

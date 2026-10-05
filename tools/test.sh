@@ -6,3 +6,5 @@ ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp tests/p
 build/tests/protocol
 ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic tests/markdown_test.cpp -o build/tests/markdown
 build/tests/markdown
+${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp tests/language_test.cpp -o build/tests/language
+build/tests/language
