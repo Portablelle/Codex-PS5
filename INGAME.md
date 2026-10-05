@@ -24,7 +24,9 @@ This is a Codex configuration, not an additional OS sandbox on the PS5.
 
 Every platform action and callback carries an increasing request ID. Callbacks
 for cancelled or superseded requests, or the wrong phase, are ignored. A failed
-turn never speaks its partial answer. Disconnects do not resend questions.
+turn never speaks its partial answer. A completed turn with an empty or over-long
+(>16384 bytes) answer ends with the status "No usable answer" and nothing is
+spoken. Disconnects do not resend questions.
 Cancellation during inference waits for termination before releasing the image;
 if it cannot terminate within 10 seconds, it requests a transport disconnect.
 
