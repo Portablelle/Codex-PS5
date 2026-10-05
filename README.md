@@ -53,10 +53,14 @@ microphone. A headset may change the audio route. Triangle ends capture, which
 is limited to 30 seconds. Circle cancels it.
 
 Whisper.cpp 1.8.3 transcribes in the selected language (French or English) on the
-PS5 CPU using the multilingual `base` model. Audio stays in console memory;
+PS5 CPU using the multilingual `small` model quantized to Q5_1. Audio stays in
+console memory;
 no transcription API or additional key is required. The text appears in the
 prompt for review. **Options sends the text to Codex.** The submitted text is
 therefore processed by the online Codex service.
+
+Transcription uses six CPU threads and greedy decoding, with French or English
+matching the selected language, without an initial vocabulary prompt.
 
 The prototype reserves a 1 GiB native heap and enables Flash Attention on CPU.
 The first PS5 test exceeded the previous 512 MiB heap during Whisper
@@ -64,8 +68,9 @@ initialization. Dictation now refuses to load the model unless the allocated
 heap has at least 768 MiB free. Other allocations retain the fallback to the
 system allocator.
 
-AudioIn capture and ChatGPT sign-in have been confirmed on 13.00.
-Transcription with this new memory budget still needs confirmation on the console.
+AudioIn capture, ChatGPT sign-in and Small Q5_1 transcription with six CPU
+threads have been confirmed on 13.00. Console testing found better recognition
+than Base, with longer transcription times.
 The energy filter removes obvious silence, but does not guarantee correct text:
 always review the dictation.
 
@@ -88,7 +93,7 @@ After creating the package with `tools/package.py`:
 5. Use L1 to sign in to ChatGPT, then start by testing a request to read files
    in the working directory.
 
-The application folder must contain `assets/ggml-base.bin` (about 148 MB).
+The application folder must contain `assets/ggml-small-q5_1.bin` (about 190 MB).
 The Folder ZIP produced by the build alone does not yet include the model;
 use the final `codex-ps5-0.0.2.zip` package.
 

@@ -60,7 +60,7 @@ void Voice::record(){
         }
         botty::platform::log("Whisper model initialization started");
         auto params=whisper_context_default_params();params.use_gpu=false;params.flash_attn=true;
-        FILE* file=std::fopen("/app0/assets/ggml-base.bin","rb");
+        FILE* file=std::fopen("/app0/assets/ggml-small-q5_1.bin","rb");
         if(file){
             whisper_model_loader loader{};loader.context=file;
             loader.read=[](void* p,void* data,std::size_t size){return std::fread(data,1,size,static_cast<FILE*>(p));};
@@ -69,10 +69,10 @@ void Voice::record(){
             context_=whisper_init_with_params(&loader,params);
         }
     }
-    if(!context_){finish("Whisper model missing or unreadable in assets/ggml-base.bin");return;}
+    if(!context_){finish("Whisper model missing or unreadable in assets/ggml-small-q5_1.bin");return;}
     botty::platform::log("Whisper context initialized");
     auto params=whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    params.n_threads=4;params.language=language::code();params.translate=false;
+    params.n_threads=6;params.language=language::code();params.translate=false;
     params.print_realtime=params.print_progress=params.print_timestamps=params.print_special=false;
     params.no_context=true;params.suppress_blank=true;params.suppress_nst=true;
     params.abort_callback=[](void* p){return static_cast<Voice*>(p)->cancelled_.load();};params.abort_callback_user_data=this;

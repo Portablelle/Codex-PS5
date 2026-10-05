@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib,json,urllib.request
 root=Path(__file__).resolve().parents[1]
 model=json.loads((root/'upstream-lock.json').read_text())['whisper_model']
-p=root/'.deps/models/ggml-base.bin';p.parent.mkdir(parents=True,exist_ok=True)
+p=root/'.deps/models/ggml-small-q5_1.bin';p.parent.mkdir(parents=True,exist_ok=True)
 if not p.exists():
  temporary=p.with_suffix('.download')
  urllib.request.urlretrieve(model['url'],temporary)
