@@ -96,9 +96,8 @@ void InGameSession::syncEngine(std::uint64_t now){
         return;
     }
     if(phase_==InGamePhase::cancelling){finish("Cancelled");return;}
-    if(engine.state.turnStatus!="completed" || engine.state.response.empty() || engine.state.response.size()>16384){
-        finish(engine.state.status);return;
-    }
+    if(engine.state.turnStatus!="completed"){finish(engine.state.status);return;}
+    if(engine.state.response.empty() || engine.state.response.size()>16384){finish("No usable answer");return;}
     // Codex has consumed the snapshot; it may now be removed before playback.
     action("releaseCapture",{{"path",image_}});image_.clear();
     action("speak",{{"text",engine.state.response}});

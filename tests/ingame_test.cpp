@@ -114,6 +114,14 @@ int main(){
     pop(failed,"overlay");pop(failed,"releaseCapture");assert(failed.actions.empty());
     assert(failed.phase()==InGamePhase::idle);
 
+    for(const auto& answer:{std::string(),std::string(16385,'a')}){
+        InGameSession unusable;ready(unusable);ask(unusable);
+        if(!answer.empty())assert(unusable.engineEvent(Json({{"method","item/completed"},{"params",{{"item",{{"type","agentMessage"},{"id","x"},{"text",answer}}}}}}).dump(),300));
+        assert(unusable.engineEvent(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})",350));
+        pop(unusable,"overlay");pop(unusable,"releaseCapture");assert(unusable.actions.empty());
+        assert(unusable.phase()==InGamePhase::idle);assert(unusable.status()=="No usable answer");
+    }
+
     InGameSession playback;ready(playback);ask(playback);
     assert(playback.engineEvent(R"({"method":"item/completed","params":{"item":{"type":"agentMessage","id":"reply","text":"Use the shield."}}})",300));
     assert(playback.engineEvent(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})",350));
