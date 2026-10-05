@@ -1,8 +1,8 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help test preview ingame-probe native backend model package
+.PHONY: help test preview ingame-probe ingame-host ingame native backend model package
 help:
-	@echo 'Targets: test preview ingame-probe native backend model package'
+	@echo 'Targets: test preview ingame-probe ingame-host ingame native backend model package'
 	@echo 'native/backend: Docker builds on PS5_BUILD_HOST, then retrieve artifacts'
 test:
 	bash tools/test.sh
@@ -10,6 +10,10 @@ preview:
 	bash tools/preview.sh
 ingame-probe:
 	bash tools/ingame-probe.sh
+ingame-host:
+	bash tools/build-ingame-host.sh
+ingame:
+	bash tools/build-ingame-remote.sh
 native:
 	bash tools/build-remote.sh
 backend:
