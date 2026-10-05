@@ -5,7 +5,7 @@
 #include <string>
 struct whisper_context;
 namespace assistant {
-struct VoiceState {bool recording=false,working=false;std::string status="Triangle : dicter",transcript;};
+struct VoiceState {bool recording=false,working=false;std::string status="Triangle: dictate",transcript;};
 class Voice {
 public:
     void toggle();void cancel();void shutdown();VoiceState snapshot();std::string takeTranscript();

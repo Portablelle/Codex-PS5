@@ -24,7 +24,7 @@ bool followConversation=true;
 unsigned chatScrollMaximum=0;
 constexpr Color rgb(unsigned r,unsigned g,unsigned b){return static_cast<Color>(0xff000000|r|(g<<8)|(b<<16));}
 constexpr auto bg=rgb(10,15,23),card=rgb(19,29,41),ink=rgb(233,241,250),muted=rgb(152,171,193),accent=rgb(84,231,167);
-const std::array<std::string_view,50> keys={"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","0","1","2","3","4","5","6","7","8","9","/",".","_","-","espace","effacer","é","è","à","ç","?",":","maj","fermer"};
+const std::array<std::string_view,50> keys={"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","0","1","2","3","4","5","6","7","8","9","/",".","_","-","space","delete","é","è","à","ç","?",":","shift","close"};
 void eraseCodepoint(std::string& s){if(s.empty())return;auto n=s.size()-1;while(n && (static_cast<unsigned char>(s[n])&0xc0)==0x80)--n;s.resize(n);}
 void lines(Canvas& c,unsigned x,unsigned y,std::string_view value,unsigned width,unsigned count,unsigned offset=0){
     unsigned row=0,seen=0;
@@ -44,7 +44,7 @@ struct ChatLine {std::string text;bool user=false,heading=false;std::vector<unsi
 std::vector<ChatLine> chatLines(Canvas& c,const assistant::State& state){
     std::vector<ChatLine> rows;
     const auto add=[&](bool user,std::string_view text){
-        rows.push_back({user?assistant::language::tr("Toi"):"Codex",user,true,{}});
+        rows.push_back({user?assistant::language::tr("You"):"Codex",user,true,{}});
         const auto formatted=user?assistant::MarkdownText{}:assistant::markdown(text);
         if(!user)text=formatted.text;
         std::size_t consumed=0;
@@ -70,7 +70,7 @@ std::vector<ChatLine> chatLines(Canvas& c,const assistant::State& state){
         if(state.messages.empty() || state.messages.back().user)add(false,state.status);
         else rows.push_back({state.status,false,true,{}});
     }
-    if(rows.empty())add(false,assistant::language::tr("Dicte ou saisis une demande pour agir sur les fichiers de la PS5."));
+    if(rows.empty())add(false,assistant::language::tr("Dictate or type a request to work on PS5 files."));
     return rows;
 }
 bool draw(Canvas& c) noexcept {
@@ -90,7 +90,7 @@ bool draw(Canvas& c) noexcept {
     auto state=client.snapshot();auto mic=voice.snapshot();
     const auto text=voice.takeTranscript();if(!text.empty()){
         if(composer.size()+text.size()+1<=16384){if(!composer.empty())composer+=' ';composer+=text;composerNotice.clear();}
-        else composerNotice=assistant::language::tr("Prompt trop long : la nouvelle dictee n'a pas ete ajoutee");
+        else composerNotice=assistant::language::tr("Prompt too long: the new dictation was not added");
         keyboard=false;
     }
     if(!state.approvals.empty()){
@@ -129,11 +129,11 @@ bool draw(Canvas& c) noexcept {
     if(pressed || !text.empty() || state.revision!=lastProtocol || mic.status!=lastMic){++uiRevision;lastProtocol=state.revision;lastMic=mic.status;}
     if(!c.needs_update(uiRevision))return true;
     c.clear(bg);c.label(70,45,"Codex PS5",44,ink);c.label(70,105,assistant::language::tr(state.status),24,accent);
-    if(assistant::language::selectable)c.label(1030,105,assistant::language::tr("R1 : langue (francais / anglais)"),20,muted);
+    if(assistant::language::selectable)c.label(1030,105,assistant::language::tr("R1: language (French / English)"),20,muted);
     c.label(1300,60,"GPT-6.1 SOL · LOW",24,muted);
     c.rounded(70,160,1780,keyboard?430:600,20,card);
     if(!state.code.empty()){
-        c.label(105,180,assistant::language::tr("Connexion ChatGPT sur ton telephone"),28,ink);
+        c.label(105,180,assistant::language::tr("Sign in to ChatGPT on your phone"),28,ink);
         c.label(105,225,state.url,24,accent);c.label(105,270,state.code,60,ink);
     } else {
         const auto rows=chatLines(c,state);const unsigned visible=keyboard?11:16;
@@ -158,19 +158,19 @@ bool draw(Canvas& c) noexcept {
         }
     }
     const unsigned promptY=keyboard?610:790;
-    c.rounded(70,promptY,1780,155,20,card);lines(c,105,promptY+18,composer.empty()?assistant::language::tr("Ton prompt..."):composer,1710,3);
+    c.rounded(70,promptY,1780,155,20,card);lines(c,105,promptY+18,composer.empty()?assistant::language::tr("Your prompt..."):composer,1710,3);
     c.label(75,980,assistant::language::tr(composerNotice.empty()?mic.status:composerNotice),24,accent);
-    c.label(75,1020,assistant::language::tr("Triangle : dicter   Carre : clavier   Options : envoyer   L1 : connexion   Rond : annuler"),20,muted);
+    c.label(75,1020,assistant::language::tr("Triangle: dictate   Square: keyboard   Options: send   L1: sign in   Circle: cancel"),20,muted);
     if(keyboard){
         for(unsigned i=0;i<keys.size();++i){unsigned x=75+(i%10)*177,y=780+(i/10)*35;
             if(i==key)c.rounded(x-3,y-1,167,32,6,rgb(39,91,71));c.label(x+5,y,assistant::language::tr(keys[i]),20,ink);}
     }
     if(!state.approvals.empty()){
         c.shade(190);c.rounded(190,200,1540,660,24,card);
-        c.label(225,225,assistant::language::tr("Codex demande ton autorisation"),32,accent);
+        c.label(225,225,assistant::language::tr("Codex needs your approval"),32,accent);
         lines(c,225,295,state.approvals.front().description,1470,11,approvalScroll);
-        c.label(225,730,approve?assistant::language::tr("  Refuser          [ Autoriser ]"):assistant::language::tr("[ Refuser ]          Autoriser"),32,ink);
-        c.label(225,800,assistant::language::tr("Haut/bas : lire. Gauche/droite : choisir. Croix : confirmer. Rond : refuser."),24,muted);
+        c.label(225,730,approve?assistant::language::tr("  Decline          [ Allow ]"):assistant::language::tr("[ Decline ]          Allow"),32,ink);
+        c.label(225,800,assistant::language::tr("Up/down: read. Left/right: choose. Cross: confirm. Circle: decline."),24,muted);
     }
     return true;
 }

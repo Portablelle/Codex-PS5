@@ -12,12 +12,12 @@ extern "C" {
 namespace assistant {
 bool Client::start(){
     protocol_.state.connected=protocol_.state.ready=protocol_.state.authenticated=true;
-    protocol_.state.thread="preview";protocol_.state.status="Pret — session simulee pour l'aperçu";
-    protocol_.state.response="Je peux t'aider à organiser les fichiers de la PS5.\n\nDicte une demande avec Triangle ou ouvre le clavier avec Carré.\n\nQuand Codex demande une autorisation, examine la commande ou le changement avant de confirmer.";
-    protocol_.state.messages={{false,"Je peux vérifier l'espace disponible sur les volumes montés.","intro"},
-        {true,"Combien d'espace reste-t-il sur ma PS5 et sur mon disque externe ?",{}},
-        {false,"- **Stockage interne PS5** : **510,4 Gio** disponibles.\n- **Disque externe** : **575,5 Gio** disponibles.\n\nVolumes vérifiés avec `df -h`.","reply"}};
-    if(std::getenv("PREVIEW_THINKING")){protocol_.state.messages.pop_back();protocol_.state.busy=true;protocol_.state.status="Codex réfléchit...";}
+    protocol_.state.thread="preview";protocol_.state.status="Ready — simulated preview session";
+    protocol_.state.response="I can help you organize PS5 files.\n\nDictate a request with Triangle or open the keyboard with Square.\n\nWhen Codex asks for approval, review the command or change before confirming.";
+    protocol_.state.messages={{false,"I can check the available space on mounted volumes.","intro"},
+        {true,"How much space is left on my PS5 and external drive?",{}},
+        {false,"- **PS5 internal storage** : **510.4 GiB** available.\n- **External drive** : **575.5 GiB** available.\n\nVolumes checked with `df -h`.","reply"}};
+    if(std::getenv("PREVIEW_THINKING")){protocol_.state.messages.pop_back();protocol_.state.busy=true;protocol_.state.status="Codex is thinking...";}
     if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt"});
     return true;
 }
@@ -26,10 +26,10 @@ void Client::changeLanguage(){protocol_.changeLanguage();}
 void Client::login(){}void Client::submit(std::string){}void Client::interrupt(){}void Client::decide(bool){}
 void Voice::toggle(){}void Voice::cancel(){}void Voice::shutdown(){}
 VoiceState Voice::snapshot(){return {};}
-std::string Voice::takeTranscript(){static bool first=true;if(first){first=false;return "Liste les fichiers du dossier /data et aide-moi à les organiser.";}return {};}
+std::string Voice::takeTranscript(){static bool first=true;if(first){first=false;return "List the files in /data and help me organize them.";}return {};}
 }
 namespace botty::platform {
-int systemLanguage() noexcept {return std::getenv("PREVIEW_ENGLISH")?1:2;}
+int systemLanguage() noexcept {return std::getenv("PREVIEW_ENGLISH")?1:(std::getenv("PREVIEW_FRENCH")?2:1);}
 std::uint64_t now() noexcept {return 0;}void sleep(unsigned) noexcept {}void log(const char*) noexcept {}
 }
 extern "C" {

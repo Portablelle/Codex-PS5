@@ -13,7 +13,7 @@ struct Approval {Json id;std::string method,description;bool reviewable=true;};
 struct Message {bool user=false;std::string text,itemId;};
 struct State {
     bool connected=false,ready=false,busy=false,authenticated=false;
-    std::string status="Demarrage du moteur...",thread,turn,response,code,url;
+    std::string status="Starting engine...",thread,turn,response,code,url;
     std::deque<Approval> approvals;
     std::deque<Message> messages;
     std::uint64_t chatRevision=1;
