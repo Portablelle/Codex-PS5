@@ -14,7 +14,6 @@ inline void initialize(int systemLanguage) {
 }
 inline bool isFrench(){return current.load()==Language::French;}
 inline bool toggle(){if(!selectable)return false;current=isFrench()?Language::English:Language::French;return true;}
-inline const char* code(){return isFrench()?"fr":"en";}
 // English source strings; French translations retain the console language support.
 inline std::string tr(std::string_view english) {
     if(!isFrench())return std::string(english);

@@ -32,14 +32,15 @@ The application does not include an SSH connection.
 
 ## Language
 
-At startup, the PS5 system language determines the Codex language: French
+At startup, the PS5 system language determines the interface language: French
 (France or Canada) on a French console, and English for all other languages
 or if reading the setting fails. On a French console only, **R1** switches
 between French and English while Codex and the microphone are idle.
 The choice applies to the current session; the next launch uses the system
-language again. The interface, dictation and response instructions follow this
-choice. The conversation is preserved, and existing messages remain in their
-original language.
+language again. This changes only interface text; it sends no request to OpenAI
+and preserves the signed-in account and the exact conversation. Messages are
+sent as entered, and Codex keeps the conversation language unless the user asks
+for another language. Dictation detects the spoken language automatically.
 
 Repository documentation, source strings and sample conversations use English.
 French interface translations are retained in `src/language.hpp`. The host UI
@@ -52,15 +53,15 @@ Triangle starts AudioIn capture for the PS5 user, normally through the DualSense
 microphone. A headset may change the audio route. Triangle ends capture, which
 is limited to 30 seconds. Circle cancels it.
 
-Whisper.cpp 1.8.3 transcribes in the selected language (French or English) on the
+Whisper.cpp 1.8.3 automatically detects the spoken language and transcribes on the
 PS5 CPU using the multilingual `small` model quantized to Q5_1. Audio stays in
 console memory;
 no transcription API or additional key is required. The text appears in the
 prompt for review. **Options sends the text to Codex.** The submitted text is
 therefore processed by the online Codex service.
 
-Transcription uses six CPU threads and greedy decoding, with French or English
-matching the selected language, without an initial vocabulary prompt.
+Transcription uses six CPU threads and greedy decoding, with automatic language
+detection and no initial vocabulary prompt.
 
 The prototype reserves a 1 GiB native heap and enables Flash Attention on CPU.
 The first PS5 test exceeded the previous 512 MiB heap during Whisper

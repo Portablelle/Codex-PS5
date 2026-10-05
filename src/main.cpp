@@ -103,7 +103,7 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_CIRCLE){client.decide(false);approvalIdentity.clear();}
     } else {
         approvalIdentity.clear();
-        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working)client.changeLanguage();
+        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working)assistant::language::toggle();
         if(pressed&PS5_PAD_BUTTON_L1)client.login();
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
