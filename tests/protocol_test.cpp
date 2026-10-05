@@ -5,6 +5,21 @@
 #include <iostream>
 using namespace assistant;
 int main(){
+    const std::string runtimeShell="/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/sh";
+    for(auto command:{"df", "'df -h'", "\"df -h /data\"", "\"cat '/data/my notes.txt'\""})
+        assert(readOnlyCommand(runtimeShell+" -lc "+command));
+    assert(readOnlyCommand(runtimeShell+" -c 'df -h'"));
+    for(auto command:{"'rm /data/a'", "'df; rm /data/a'", "'df && rm /data/a'",
+                      "'df | tee /data/a'", "'df > /data/a'", "'df $(touch /data/a)'",
+                      "'sh -c df'", "'df' extra", "\"cat 'unfinished\""})
+        assert(!readOnlyCommand(runtimeShell+" -lc "+command));
+    for(auto shell:{"sh", "/bin/sh", "/data/sh",
+                    "/data/codex-ps5/runtime/tools-invalid/sh",
+                    "/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9eg/sh",
+                    "/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/../sh"})
+        assert(!readOnlyCommand(std::string(shell)+" -lc 'df -h'"));
+    assert(!readOnlyCommand(runtimeShell+" -lc '"+runtimeShell+" -lc df'"));
+    assert(!readOnlyCommand(runtimeShell+" -x 'df'"));
     for(auto command:{"ls -la /data", "cat '/data/my notes.txt'", "head -n 20 /data/log.txt",
                       "tail -n 10 /data/log.txt", "wc -l /data/log.txt", "grep error /data/log.txt",
                       "du -s /data", "df -h", "ps -A", "pwd", "uname -a", "whoami",
@@ -37,12 +52,24 @@ int main(){
     assert(p.state.approvals.empty() && p.outgoing.size()==autoBefore+1);
     auto autoReply=Json::parse(p.outgoing.back());
     assert(autoReply["id"]=="read-1" && autoReply["result"]["decision"]=="accept");
+    for(auto command:{"df", "'df -h'"}){
+        const auto count=p.outgoing.size();
+        assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","wrapped-read"},
+                             {"params",{{"command",runtimeShell+" -lc "+command},
+                                        {"cwd","/data/codex-ps5/workspace"}}}}).dump()));
+        assert(p.state.approvals.empty() && p.outgoing.size()==count+1);
+        const auto result=Json::parse(p.outgoing.back());
+        assert(result["id"]=="wrapped-read" && result["result"]["decision"]=="accept");
+    }
     for(auto context:{R"({"kind":"stdin"})", R"({"additionalPermissions":{"fileSystem":{"write":["/data"]}}})",
                       R"({"networkApprovalContext":{"host":"example.com"}})", R"({"grantRoot":"/data"})"}){
-        auto params=Json::parse(context);params["command"]="cat /data/note.txt";
+        auto params=Json::parse(context);params["command"]=runtimeShell+" -lc 'df -h'";
         assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","context"},{"params",params}}).dump()));
         assert(p.state.approvals.size()==1);p.decide(false);
     }
+    assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","wrapped-write"},
+                         {"params",{{"command",runtimeShell+" -lc 'rm /data/a'"}}}}).dump()));
+    assert(p.state.approvals.size()==1);p.decide(false);
     assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"commandExecution","id":"read-parent","command":"ls /data"}}})"));
     assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"cached","params":{"itemId":"read-parent"}})"));
     assert(p.state.approvals.size()==1);p.decide(false);
