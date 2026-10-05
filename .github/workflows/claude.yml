@@ -47,5 +47,5 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # Let Claude build and run the project's tests before pushing a fix.
-          claude_args: '--allowedTools "Bash(bash tools/test.sh:*),Bash(make test:*),Bash(clang++:*),Bash(g++:*),Bash(build/tests/*:*),Bash(gh pr diff:*),Bash(gh pr view:*)"'
+          claude_args: '--model claude-sonnet-5-5 --effort high --allowedTools "Bash(bash tools/test.sh:*),Bash(make test:*),Bash(clang++:*),Bash(g++:*),Bash(build/tests/*:*),Bash(gh pr diff:*),Bash(gh pr view:*)"'
 
