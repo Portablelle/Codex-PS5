@@ -55,7 +55,7 @@ void Protocol::begin(){
 void Protocol::disconnect(){
     pending_.clear();items_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
     state.approvals.clear();state.thread.clear();state.turn.clear();
-    state.status="Moteur deconnecte. La requete ne sera pas renvoyee.";++state.revision;
+    state.status="Engine disconnected. The request will not be resent.";++state.revision;
 }
 void Protocol::login(){
     if(!state.ready || !state.code.empty())return;
@@ -64,7 +64,7 @@ void Protocol::login(){
 }
 void Protocol::submit(std::string_view text){
     if(!state.ready || state.busy || state.thread.empty() || text.empty() || text.size()>16384)return;
-    state.busy=true;state.response.clear();state.status="Codex réfléchit...";
+    state.busy=true;state.response.clear();state.status="Codex is thinking...";
     ++turnSequence_;
     state.messages.push_back({true,std::string(text),{}});++state.chatRevision;
     while(state.messages.size()>64)state.messages.pop_front();
@@ -92,7 +92,7 @@ void Protocol::decide(bool accept){
     if(state.approvals.empty())return;
     auto a=state.approvals.front();state.approvals.pop_front();
     emit({{"id",a.id},{"result",{{"decision",accept && a.reviewable?"accept":"decline"}}}});
-    state.status=state.approvals.empty()?"Codex reprend...":"Action suivante a confirmer";
+    state.status=state.approvals.empty()?"Codex is resuming...":"Next action needs approval";
     ++state.revision;
 }
 bool Protocol::ingest(std::string_view line){
@@ -119,22 +119,22 @@ bool Protocol::ingest(std::string_view line){
             if(description.empty() && cached!=items_.end())description=cached->second;
             const bool detailAvailable=!description.empty() && field(p,"kind")!="stdin";
             const auto cwd=field(p,"cwd"),reason=field(p,"reason"),root=field(p,"grantRoot");
-            if(!cwd.empty())description+=language::tr("\nDossier : ")+cwd;
-            if(!root.empty())description+=language::tr("\nRacine demandee : ")+root;
-            if(!reason.empty())description+=language::tr("\nMotif : ")+reason;
-            if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+=language::tr("\nPermissions : ")+p["additionalPermissions"].dump();
+            if(!cwd.empty())description+=language::tr("\nDirectory: ")+cwd;
+            if(!root.empty())description+=language::tr("\nRequested root: ")+root;
+            if(!reason.empty())description+=language::tr("\nReason: ")+reason;
+            if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+=language::tr("\nPermissions: ")+p["additionalPermissions"].dump();
             const bool complete=detailAvailable && description.size()<=8192;
-            if(!complete)description=language::tr("Details incomplets ou trop longs : refus uniquement.\n")+description;
+            if(!complete)description=language::tr("Details incomplete or too long: decline only.\n")+description;
             state.approvals.push_back({*id,method,description.substr(0,8192),complete});
-            state.status="Action en attente de confirmation";
-        } else emit({{"id",*id},{"error",{{"code",-32601},{"message",language::tr("Interaction non prise en charge par le prototype PS5")}}}});
+            state.status="Action awaiting approval";
+        } else emit({{"id",*id},{"error",{{"code",-32601},{"message",language::tr("Interaction unsupported by the PS5 prototype")}}}});
     } else if(method.empty() && id!=j.end() && id->is_number_integer()) {
         if(!id->is_number_unsigned() && id->get<std::int64_t>()<0)return false;
         const auto wide=id->get<std::uint64_t>();if(wide>2147483647)return false;
         auto it=pending_.find(static_cast<int>(wide));if(it==pending_.end())return true;
         const auto requestMethod=it->second;pending_.erase(it);
         if(j.contains("error")) {
-            state.status="Erreur: "+field(object(j,"error"),"message");
+            state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start")state.busy=false;
         } else {
             const auto& r=object(j,"result");
@@ -146,10 +146,10 @@ bool Protocol::ingest(std::string_view line){
             else if(requestMethod=="turn/start")state.turn=field(object(r,"turn"),"id");
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");
-                state.status="Connecte-toi sur un telephone avec le code affiche.";
+                state.status="Sign in on your phone using the displayed code.";
             } else if(requestMethod=="account/read") {
                 state.authenticated=r.contains("account") && r["account"].is_object();
-                state.status=state.authenticated?"Pret":"L1 : connexion au compte ChatGPT";
+                state.status=state.authenticated?"Ready":"L1: sign in to ChatGPT";
                 startThread();
             }
         }
@@ -157,9 +157,9 @@ bool Protocol::ingest(std::string_view line){
         const auto& item=object(p,"item");const auto type=field(item,"type");
         const auto itemId=field(item,"id");std::string details;
         if(state.busy && state.approvals.empty()){
-            if(method=="item/started" && type=="commandExecution")state.status="Codex exécute une commande...";
-            else if(method=="item/started" && type=="agentMessage")state.status="Codex répond...";
-            else if(type=="reasoning" || method=="item/completed")state.status="Codex réfléchit...";
+            if(method=="item/started" && type=="commandExecution")state.status="Codex is running a command...";
+            else if(method=="item/started" && type=="agentMessage")state.status="Codex is replying...";
+            else if(type=="reasoning" || method=="item/completed")state.status="Codex is thinking...";
         }
         if(type=="agentMessage" && method=="item/completed"){
             const auto text=field(item,"text");if(text.size()>262144)return false;
@@ -168,7 +168,7 @@ bool Protocol::ingest(std::string_view line){
         if(type=="commandExecution")details=field(item,"command");
         else if(type=="fileChange" && item.contains("changes") && item["changes"].is_array()) {
             for(const auto& change:item["changes"]){
-                details+=language::tr("Fichier : ")+field(change,"path")+"\n"+field(change,"diff")+"\n";
+                details+=language::tr("File: ")+field(change,"path")+"\n"+field(change,"diff")+"\n";
                 if(details.size()>8192)break;
             }
         }
@@ -181,19 +181,19 @@ bool Protocol::ingest(std::string_view line){
         if(state.response.size()+delta.size()>262144)return false;
         state.response+=delta;
         agentMessage(field(p,"itemId"),delta,true);
-        if(state.approvals.empty())state.status="Codex répond...";
+        if(state.approvals.empty())state.status="Codex is replying...";
     } else if(method=="item/reasoning/textDelta" || method=="item/reasoning/summaryTextDelta" || method=="item/reasoning/summaryPartAdded"){
-        if(state.busy && state.approvals.empty())state.status="Codex réfléchit...";
+        if(state.busy && state.approvals.empty())state.status="Codex is thinking...";
     } else if(method=="turn/started") {state.turn=field(object(p,"turn"),"id");state.busy=true;}
     else if(method=="turn/completed") {
         state.busy=false;state.turn.clear();state.approvals.clear();items_.clear();
         const auto& turn=object(p,"turn");const auto status=field(turn,"status");
-        state.status=status=="completed"?"Termine":status=="interrupted"?"Interrompu":"Echec: "+field(object(turn,"error"),"message");
+        state.status=status=="completed"?"Completed":status=="interrupted"?"Interrupted":"Failed: "+field(object(turn,"error"),"message");
     } else if(method=="account/login/completed") {
         if(p.contains("success") && p["success"]==true) {
             state.code.clear();state.url.clear();request("account/read",{{"refreshToken",false}});
-        } else {state.code.clear();state.url.clear();state.status="Connexion echouee: "+field(p,"error");}
-    } else if(method=="error")state.status="Erreur: "+field(object(p,"error"),"message");
+        } else {state.code.clear();state.url.clear();state.status="Sign-in failed: "+field(p,"error");}
+    } else if(method=="error")state.status="Error: "+field(object(p,"error"),"message");
     ++state.revision;return true;
 }
 }

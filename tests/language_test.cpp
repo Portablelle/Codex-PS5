@@ -12,9 +12,16 @@ int main(){
         assert(!language::isFrench());
         if(french){assert(language::toggle());assert(language::isFrench());}
     }
+    language::initialize(2);
+    assert(language::tr("Codex is thinking...")=="Codex réfléchit...");
+    assert(language::tr("Error: example")=="Erreur: example");
+    assert(language::tr("Your prompt...")=="Ton prompt...");
+    assert(language::tr("You")=="Toi");
+    assert(language::tr("\nDirectory: /data")=="\nDossier : /data");
+    assert(language::tr("/data/notes.txt")=="/data/notes.txt");
     language::initialize(1);
-    assert(language::tr("Codex réfléchit...")=="Codex is thinking...");
-    assert(language::tr("Erreur: example")=="Error: example");
+    assert(language::tr("Codex is thinking...")=="Codex is thinking...");
+    assert(language::tr("Error: example")=="Error: example");
     assert(std::string(language::code())=="en");
     Protocol p;p.begin();p.ingest(R"({"id":1,"result":{}})");
     p.ingest(R"({"id":2,"result":{"account":{}}})");

@@ -1,172 +1,176 @@
-# Codex PS5 0.0.2 — prototype natif
+# Codex PS5 0.0.2 — native prototype
 
-Assistant pour les fichiers d'une PS5 jailbreakée, avec une interface native à
-la manette et une dictée locale. Ce projet n'est pas une application officielle
-OpenAI ou Sony. La cible de validation est le firmware 13.00 avec
-Relapse/kstuff/ShadowMount. La connexion ChatGPT, les commandes locales et le chat ont été testés sur cette console.
+An assistant for files on a jailbroken PS5, with a native controller interface
+and local dictation. This project is not an official OpenAI or Sony application.
+The validation target is firmware 13.00 with Relapse/kstuff/ShadowMount.
+ChatGPT sign-in, local commands and chat have been tested on this console.
 
-## Fonctionnement
+## How it works
 
-Deux composants tournent **sur la PS5** :
+Two components run **on the PS5**:
 
-* `assistant-service.elf` : moteur Codex 0.160.0 porté par
-  [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli), adapté pour exposer
-  `codex app-server` sur une socket **127.0.0.2:49322**. Les outils shell et les
-  modifications de fichiers s'exécutent localement.
-* `PPSA99105` : application graphique native, construite avec les outils de
-  [OpenNOW PS5](https://github.com/Portablelle/opennow-ps5) et le renderer Botty+.
-  Elle utilise le protocole JSONL de l'app-server, sans navigateur.
+* `assistant-service.elf`: the Codex 0.160.0 engine ported by
+  [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli), adapted to expose
+  `codex app-server` on a **127.0.0.2:49322** socket. Shell tools and file
+  modifications run locally.
+* `PPSA99105`: a native graphical application built with tools from
+  [OpenNOW PS5](https://github.com/Portablelle/opennow-ps5) and the Botty+ renderer.
+  It uses the app-server JSONL protocol without a browser.
 
-Le portail Botty peut démarrer le moteur avec l'option **Codex PS5**, une fois
-les fichiers installés par FTP. Le moteur peut également être lancé avec le
-chargeur ELF de Relapse ou Payload Manager. Le portail vérifie son empreinte,
-mais ne télécharge pas automatiquement les mises à jour de cette application.
+The Botty portal can start the engine through the **Codex PS5** option once the
+files have been installed over FTP. The engine can also be launched with the
+Relapse ELF loader or Payload Manager. The portal verifies its checksum,
+but does not automatically download updates for this application.
 
-L'identifiant PPSA99105 est provisoire : vérifier qu'il est libre avant une
-première installation. Les scripts de compilation n'installent rien sur console.
+The PPSA99105 title ID is provisional: check that it is available before the
+first installation. The build scripts do not install anything on the console.
 
-Connexion ChatGPT par code affiché sur la télévision et validé sur un téléphone.
-Les réponses Codex nécessitent Internet et un compte disposant de l'accès Codex.
-Le modèle sélectionné est **GPT-6.1 SOL**, avec l'effort de raisonnement **low**.
-Il n'y a pas de connexion SSH dans l'application.
+Sign in to ChatGPT using a code displayed on the TV and confirmed on a phone.
+Codex responses require Internet access and an account with Codex access.
+The selected model is **GPT-6.1 SOL**, with **low** reasoning effort.
+The application does not include an SSH connection.
 
-## Langue
+## Language
 
-Au lancement, la langue système de la PS5 détermine celle de Codex : français
-(France ou Canada) pour une console en français, anglais pour toutes les autres
-langues ou si la lecture du réglage échoue. Sur une console en français uniquement,
-**R1** bascule entre français et anglais lorsque Codex et le micro sont au repos.
-Le choix vaut pour la session ; le prochain lancement reprend la langue système.
-L’interface, la dictée et les consignes de réponse suivent ce choix. La conversation
-est conservée, et les messages déjà reçus restent dans leur langue d’origine.
+At startup, the PS5 system language determines the Codex language: French
+(France or Canada) on a French console, and English for all other languages
+or if reading the setting fails. On a French console only, **R1** switches
+between French and English while Codex and the microphone are idle.
+The choice applies to the current session; the next launch uses the system
+language again. The interface, dictation and response instructions follow this
+choice. The conversation is preserved, and existing messages remain in their
+original language.
 
-## Dictée
+Repository documentation, source strings and sample conversations use English.
+French interface translations are retained in `src/language.hpp`. The host UI
+preview uses English by default; set `PREVIEW_FRENCH=1` to preview the French
+interface (`PREVIEW_ENGLISH=1` explicitly selects English).
 
-Triangle démarre la capture AudioIn de l'utilisateur PS5, normalement le micro
-DualSense. Un casque peut changer la route audio. Triangle termine la capture,
-limitée à 30 secondes. Rond annule.
+## Dictation
 
-Whisper.cpp 1.8.3 transcrit dans la langue sélectionnée (français ou anglais) sur le CPU de la PS5, avec le modèle
-multilingue `base`. L'audio reste en mémoire dans la console ; aucune API de
-transcription ni clé supplémentaire. Le texte apparaît dans le prompt pour
-relecture. **Options envoie le texte à Codex.** Le texte envoyé est donc traité
-par le service Codex en ligne.
+Triangle starts AudioIn capture for the PS5 user, normally through the DualSense
+microphone. A headset may change the audio route. Triangle ends capture, which
+is limited to 30 seconds. Circle cancels it.
 
-Le prototype réserve un heap natif de 1 Gio et active Flash Attention sur CPU.
-Le premier essai sur PS5 a dépassé le précédent heap de 512 Mio lors de
-l'initialisation de Whisper. La dictée refuse maintenant de charger le modèle
-si le heap obtenu n'a pas au moins 768 Mio libres. Les autres allocations
-conservent le repli vers l'allocateur système.
+Whisper.cpp 1.8.3 transcribes in the selected language (French or English) on the
+PS5 CPU using the multilingual `base` model. Audio stays in console memory;
+no transcription API or additional key is required. The text appears in the
+prompt for review. **Options sends the text to Codex.** The submitted text is
+therefore processed by the online Codex service.
 
-La capture AudioIn et la connexion ChatGPT ont été confirmées sur 13.00.
-La transcription avec ce nouveau budget reste à confirmer sur console.
-Le filtre d'énergie élimine le silence évident,
-mais ne garantit pas l'absence de texte incorrect : relire la dictée.
+The prototype reserves a 1 GiB native heap and enables Flash Attention on CPU.
+The first PS5 test exceeded the previous 512 MiB heap during Whisper
+initialization. Dictation now refuses to load the model unless the allocated
+heap has at least 768 MiB free. Other allocations retain the fallback to the
+system allocator.
 
-## Installation du prototype
+AudioIn capture and ChatGPT sign-in have been confirmed on 13.00.
+Transcription with this new memory budget still needs confirmation on the console.
+The energy filter removes obvious silence, but does not guarantee correct text:
+always review the dictation.
 
-Après création du paquet avec `tools/package.py` :
+## Installing the prototype
 
-1. Vérifier que l'identifiant PPSA99105 est libre sur la console.
-2. Copier le dossier `bundle/PPSA99105` complet sous
-   `/data/homebrew/PPSA99105`, selon le flux Folder de ShadowMount.
-3. Copier `bundle/assistant-service.elf` dans
+After creating the package with `tools/package.py`:
+
+1. Check that the PPSA99105 title ID is available on the console.
+2. Copy the complete `bundle/PPSA99105` folder to
+   `/data/homebrew/PPSA99105`, following the ShadowMount Folder workflow.
+3. Copy `bundle/assistant-service.elf` to
    `/data/codex-ps5/payloads/assistant-service/assistant-service.elf`.
-   Sans ce dossier, le service cherche aussi un import Payload Manager nommé
-   `assistant-service` ou `assistant-service-*` sous `/data/pldmgr/payloads`.
-   Créer aussi `/data/ps5-ai-cli` : le chargeur ELF hérité utilise encore ce
-   dossier pour son verrou ; les données Codex restent sous `/data/codex-ps5`.
-4. Lancer le payload avec le chargeur ELF de Relapse (port 9021), ou avec
-   Payload Manager si utilisé, puis ouvrir Codex PS5 depuis la bibliothèque.
-   Le service doit être relancé après chaque redémarrage de la console.
-5. Utiliser L1 pour l'authentification ChatGPT, puis tester d'abord une demande
-   de lecture des fichiers du dossier de travail.
+   If this folder is absent, the service also looks for a Payload Manager import
+   named `assistant-service` or `assistant-service-*` under `/data/pldmgr/payloads`.
+   Also create `/data/ps5-ai-cli`: the legacy ELF loader still uses this
+   folder for its lock; Codex data remains under `/data/codex-ps5`.
+4. Launch the payload with the Relapse ELF loader (port 9021), or with
+   Payload Manager if used, then open Codex PS5 from the library.
+   The service must be relaunched after each console reboot.
+5. Use L1 to sign in to ChatGPT, then start by testing a request to read files
+   in the working directory.
 
-Le dossier de l'application doit contenir `assets/ggml-base.bin` (environ
-148 Mo). Le ZIP Folder produit par la compilation seule n'inclut pas encore
-le modèle ; utiliser le paquet final `codex-ps5-0.0.2.zip`.
+The application folder must contain `assets/ggml-base.bin` (about 148 MB).
+The Folder ZIP produced by the build alone does not yet include the model;
+use the final `codex-ps5-0.0.2.zip` package.
 
-## Commandes
+## Controls
 
-| Touche | Action |
+| Button | Action |
 | --- | --- |
-| Triangle | Démarrer / terminer la dictée |
-| Carré | Ouvrir / fermer le clavier à la manette |
-| Croix | Saisir une touche / confirmer un choix |
-| Options | Envoyer le prompt |
-| L1 | Se connecter à ChatGPT |
-| R1 | Français / anglais, uniquement sur une PS5 en français et au repos |
-| Rond | Annuler la dictée / interrompre Codex / refuser une action |
-| Haut / bas | Parcourir la réponse, lorsque le clavier est fermé |
+| Triangle | Start / finish dictation |
+| Square | Open / close the controller keyboard |
+| Cross | Enter a key / confirm a choice |
+| Options | Send the prompt |
+| L1 | Sign in to ChatGPT |
+| R1 | French / English, only on a French PS5 while idle |
+| Circle | Cancel dictation / interrupt Codex / decline an action |
+| Up / down | Scroll through the response while the keyboard is closed |
 
-Les demandes d'approbation pour les commandes et changements de fichiers
-s'affichent dans une fenêtre, avec défilement des détails. Le client accepte
-automatiquement les commandes simples de consultation reconnues : `ls`, `cat`,
-`head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`, `pwd`, `uname`, `whoami`,
-`readlink`, `ps5-tools` et la lecture de propriétés nommées avec `sysctl`.
-Cette acceptation vaut uniquement pour la commande demandée, jamais pour toute
-la session. Les scripts, chemins d'exécutables arbitraires, commandes composées,
-redirections, expansions shell et demandes de permissions supplémentaires
-restent soumis à confirmation, même si leur intention semble être une lecture.
-Une commande absente de la demande n'est jamais acceptée automatiquement à partir
-des détails d'une commande précédente. Les changements de
-fichiers montrent le chemin et le diff transmis par Codex. Un détail manquant
-ou trop long ne peut pas être approuvé dans ce prototype. Le choix initial est **Refuser**. L'application ne
-réutilise pas une pression de Croix antérieure pour approuver une nouvelle action.
+Approval requests for commands and file changes appear in a window with
+scrollable details. The client automatically accepts recognized simple
+inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,
+`pwd`, `uname`, `whoami`, `readlink`, `ps5-tools` and named property reads with
+`sysctl`. This acceptance applies only to the requested command, never to the
+entire session. Scripts, arbitrary executable paths, compound commands,
+redirections, shell expansions and requests for additional permissions still
+require confirmation, even if their apparent intent is to read data.
+A command missing from the request is never automatically accepted based on
+details from a previous command. File changes show the path and diff supplied
+by Codex. Missing or excessively long details cannot be approved in this
+prototype. The initial choice is **Decline**. The application does not reuse
+an earlier Cross button press to approve a new action.
 
-## Boîte à outils locale
+## Local toolbox
 
-Le runtime embarque le shell Dash, 83 utilitaires sbase et les commandes
-natives `df`, `ps`, `sysctl` et `ps5-tools`. Le catalogue `ps5-tools` décrit
-l'ensemble installé ; Codex choisit ses commandes selon la demande.
+The runtime includes the Dash shell, 83 sbase utilities and native `df`, `ps`,
+`sysctl` and `ps5-tools` commands. The `ps5-tools` catalog describes the installed
+set; Codex chooses commands according to the request.
 
-Les outils couvrent les fichiers et liens (`cp`, `mv`, `rm`, `find`, `ln`,
-`readlink`), l'édition et le texte (`ed`, `sed`, `grep`, `sponge`, `strings`),
-les permissions (`chmod`, `chown`, `chgrp`), les archives et contrôles
-(`tar`, `dd`, `cksum`, les sommes SHA), les capacités (`df`, `du`), les
-processus (`ps`, `kill`, `nice`, `renice`) et l'information système
-(`uname`, `hostname`, `date`, `sysctl`). La liste source est dans
-`backend/runtime-tools.txt`. Les options sont celles de sbase, pas toutes
-les extensions GNU ; une option inconnue doit produire une erreur.
-La création de liens dépend aussi du système de fichiers ; elle a été refusée
-sur le dossier de test interne de la console, même avec la commande présente.
+Tools cover files and links (`cp`, `mv`, `rm`, `find`, `ln`, `readlink`), editing
+and text (`ed`, `sed`, `grep`, `sponge`, `strings`), permissions (`chmod`, `chown`,
+`chgrp`), archives and checks (`tar`, `dd`, `cksum`, SHA checksums), capacity
+(`df`, `du`), processes (`ps`, `kill`, `nice`, `renice`) and system information
+(`uname`, `hostname`, `date`, `sysctl`). The source list is in
+`backend/runtime-tools.txt`. Options follow sbase rather than all GNU
+extensions; an unknown option should produce an error.
+Link creation also depends on the filesystem; it was denied in the console's
+internal test folder even though the command was available.
 
-`ps` interroge la liste réelle des processus Prospero et affiche PID/nom.
-Il n'expose pas les arguments ou des statistiques CPU. Un hook du kernel
-ou un payload terminé après installation de ses hooks n'est pas nécessairement
-un processus : leur absence dans `ps` ne prouve pas qu'ils sont inactifs.
-`sysctl` lit des propriétés nommées ; les valeurs opaques nécessitent `-b`.
-Cette boîte à outils ne constitue pas encore tout le userland FreeBSD :
-`curl`, `netstat`, `git`, Python et le montage/démontage ne sont pas fournis.
+`ps` queries the actual Prospero process list and displays PID/name.
+It does not expose arguments or CPU statistics. A kernel hook or a payload
+that exits after installing its hooks is not necessarily a process:
+its absence from `ps` does not prove that it is inactive.
+`sysctl` reads named properties; opaque values require `-b`.
+This toolbox does not yet provide the full FreeBSD userland: `curl`, `netstat`,
+`git`, Python and mounting/unmounting are not included.
 
-## Accès aux fichiers et limites
+## File access and limitations
 
-État et identifiants Codex : `/data/codex-ps5/home/.codex`.
-Dossier de travail initial : `/data/codex-ps5/workspace`.
-Le moteur dispose des droits du payload ; il n'existe **pas de sandbox système**.
-La politique Codex `untrusted` demande l'approbation des actions non considérées
-comme sûres. Les consignes sur `/data`, `/mnt/usb*` et les fichiers système sont
-des instructions au modèle, pas une restriction imposée par le système.
-La socket locale n'est pas authentifiée : les applications locales ayant accès
-au réseau de la console doivent être considérées comme de confiance.
+Codex state and credentials: `/data/codex-ps5/home/.codex`.
+Initial working directory: `/data/codex-ps5/workspace`.
+The engine runs with the payload's permissions; there is **no system sandbox**.
+The Codex `untrusted` policy requests approval for actions not considered safe.
+The guidance about `/data`, `/mnt/usb*` and system files consists of model
+instructions, not restrictions enforced by the system.
+The local socket is unauthenticated: local applications with access to the
+console network must be trusted.
 
-Premier prototype : une conversation active avec messages chronologiques,
-réponse en streaming, états de réflexion/réponse et saisie à la manette.
-Haut/bas parcourt les messages de la session (64 messages récents, jusqu'à
-1 Mio de texte). Pas encore de reprise de conversation après
-fermeture, de navigateur de fichiers ou de vue de diff complète. Une déconnexion
-arrête l'app-server de cette session ; une action commencée peut continuer
-ou avoir déjà modifié des fichiers. Elle n'est pas annulée. Les prompts ne sont jamais renvoyés automatiquement.
+This first prototype supports one active conversation with chronological
+messages, streaming responses, thinking/replying states and controller input.
+Up/down scrolls through session messages (64 recent messages, up to 1 MiB of
+text). Conversation resumption after closing, a file browser and a full diff
+view are not available yet. A disconnect stops the app-server for that session;
+an action already started may continue or may already have modified files.
+It is not rolled back. Prompts are never automatically resent.
 
-## Compilation
+## Building
 
-Docker doit tourner sur un **hôte Linux distant** ; les scripts du poste de travail
-synchronisent les sources et récupèrent les artefacts. Définir `PS5_BUILD_HOST`
-(alias SSH) et `PS5_BUILD_DIRECTORY` selon l'environnement de compilation.
+Docker must run on a **remote Linux host**; workstation scripts synchronize
+sources and retrieve artifacts. Set `PS5_BUILD_HOST` (SSH alias) and
+`PS5_BUILD_DIRECTORY` for your build environment.
 
 ```sh
 bash tools/test.sh
-# Optionnel avec Codex 0.160.0 installé sur le poste :
+# Optional, with Codex 0.160.0 installed on the workstation:
 python3 tests/app_server_handshake.py
 PS5_BUILD_HOST=build-host bash tools/build-remote.sh
 PS5_BUILD_HOST=build-host bash tools/build-backend-remote.sh
@@ -174,23 +178,29 @@ python3 tools/fetch-model.py
 python3 tools/package.py
 ```
 
-La première compilation du moteur télécharge le SDK et Rust puis compile Codex ;
-elle est nettement plus longue que celle de l'interface. Prévoir plusieurs Go de
-RAM et suffisamment d'espace disque. L'hôte doit permettre `sudo -n docker`,
-avoir Python, Git, npm et rsync. Le builder natif utilise l'image Linux
-`opennow-ps5-builder:latest`, à construire avec
-`docker build -f tools/Dockerfile.native -t opennow-ps5-builder:latest .`
-sur l'hôte Linux si elle est absente.
+The first engine build downloads the SDK and Rust, then compiles Codex;
+it takes substantially longer than building the interface. Allow several GB
+of RAM and enough disk space. The host must support `sudo -n docker` and have
+Python, Git, npm and rsync installed. The native builder uses the Linux image
+`opennow-ps5-builder:latest`; if missing, build it on the Linux host with
+`docker build -f tools/Dockerfile.native -t opennow-ps5-builder:latest .`.
 
-`upstream-lock.json` et les verrous de ps5-ai-cli fixent les révisions. Le modèle
-Whisper est téléchargé séparément et vérifié par SHA-256, puis inclus par le
-script de packaging. Les poids ne sont pas versionnés.
+`upstream-lock.json` and the ps5-ai-cli lockfiles pin revisions. The Whisper
+model is downloaded separately and verified with SHA-256, then included by
+the packaging script. Model weights are not tracked in version control.
 
 ## Attribution
 
-Voir `THIRD_PARTY.md`, `LICENSE`, `licenses/` et les licences du snapshot
-`vendor/ps5-ai-cli`. Le source des adaptations et les scripts de compilation sont fournis.
+See `THIRD_PARTY.md`, `LICENSE`, `licenses/` and the licenses in the
+`vendor/ps5-ai-cli` snapshot. Source for the adaptations and build scripts
+is provided.
 
-## Mises à jour via Botty+
+## Updates through Botty+
 
-Avec Codex coché, LAUNCH installe et met à jour le titre natif, Whisper et le moteur avant son démarrage. Les téléchargements sont vérifiés par blocs de 1 Mio. Le dossier de travail et la connexion ChatGPT sont conservés. Fermer les applications natives avant LAUNCH ; les installations précédentes restent en sauvegarde. Le moteur 0.0.2 expose un contrôle local sur 127.0.0.1:49323 pour son état et son arrêt propre à vide. Le moteur antérieur nécessite un redémarrage complet après la première mise à jour.
+With Codex selected, LAUNCH installs and updates the native title, Whisper and
+the engine before starting it. Downloads are verified in 1 MiB blocks.
+The working directory and ChatGPT sign-in are preserved. Close native
+applications before LAUNCH; previous installations are kept as backups.
+Engine 0.0.2 exposes a local control endpoint at 127.0.0.1:49323 for status
+and clean shutdown while idle. The previous engine requires a full reboot
+after the first update.
