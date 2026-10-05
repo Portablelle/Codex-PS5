@@ -19,7 +19,7 @@ void Protocol::request(const char* method,Json params){
     emit({{"id",id},{"method",method},{"params",std::move(params)}});
 }
 static std::string instructions(){
-    return std::string(language::isFrench()?"Answer in French. ":"Answer in English. ")+
+    return "Follow the response language requested in the current user message. "
     "You are an assistant running locally on a jailbroken PS5. "
                     "Inspect before modifying. Work on user files in /data or /mnt/usb*. "
                     "Perform read-only inspection without asking the user for confirmation. "
@@ -34,12 +34,8 @@ static std::string instructions(){
 }
 void Protocol::changeLanguage(){
     if(state.busy || !state.approvals.empty() || !state.ready)return;
-    for(const auto& entry:pending_)if(entry.second=="thread/start" || entry.second=="thread/resume")return;
+    for(const auto& entry:pending_)if(entry.second=="thread/start")return;
     if(!language::toggle())return;
-    if(!state.thread.empty()) {
-        state.ready=false;
-        request("thread/resume",{{"threadId",state.thread},{"developerInstructions",instructions()}});
-    }
     ++state.revision;
 }
 void Protocol::startThread(){
@@ -72,7 +68,10 @@ void Protocol::submit(std::string_view text){
     ++turnSequence_;
     state.messages.push_back({true,std::string(text),{}});++state.chatRevision;
     while(state.messages.size()>64)state.messages.pop_front();
-    request("turn/start",{{"threadId",state.thread},{"model","gpt-6.1-sol"},{"effort","low"},{"input",Json::array({{{"type","text"},{"text",text},{"text_elements",Json::array()}}})}});
+    // The live thread may not have a persisted rollout yet. Carry the language
+    // with each turn instead of resuming the thread just to change instructions.
+    const auto input=std::string(language::isFrench()?"Answer in French.\n\n":"Answer in English.\n\n")+std::string(text);
+    request("turn/start",{{"threadId",state.thread},{"model","gpt-6.1-sol"},{"effort","low"},{"input",Json::array({{{"type","text"},{"text",input},{"text_elements",Json::array()}}})}});
     ++state.revision;
 }
 void Protocol::agentMessage(std::string id,std::string text,bool append){
@@ -137,7 +136,6 @@ bool Protocol::ingest(std::string_view line){
         if(j.contains("error")) {
             state.status="Erreur: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start")state.busy=false;
-            if(requestMethod=="thread/resume"){language::toggle();state.ready=true;}
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {
@@ -145,7 +143,6 @@ bool Protocol::ingest(std::string_view line){
                 request("account/read",{{"refreshToken",false}});
 
             } else if(requestMethod=="thread/start")state.thread=field(object(r,"thread"),"id");
-            else if(requestMethod=="thread/resume"){state.ready=true;state.status="Pret";}
             else if(requestMethod=="turn/start")state.turn=field(object(r,"turn"),"id");
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");
