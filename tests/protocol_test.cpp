@@ -153,6 +153,63 @@ int main(){
         assert(f.submit("Hello") && f.state.busy);
     }
     {
+        // A saved conversation is resumed with its history; no prompt is sent again.
+        Protocol f;f.begin("saved-thread_1");assert(f.state.conversation=="saved-thread_1");
+        f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        auto resume=Json::parse(f.outgoing.back());
+        assert(resume["method"]=="thread/resume" && resume["id"]==3 && resume["params"]["threadId"]=="saved-thread_1");
+        assert(resume["params"]["approvalPolicy"]=="untrusted" && resume["params"]["cwd"]=="/data/codex-ps5/workspace");
+        assert(!f.retryThread() && !f.submit("Hello") && f.outgoing.size()==4); // nothing while it is resumed
+        assert(f.ingest(R"({"id":3,"result":{"thread":{"id":"saved-thread_1","turns":[
+            {"id":"t1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"Free space?"},{"type":"localImage","path":"/data/a.png"}]},
+                                {"type":"commandExecution","id":"c1","command":"df -h"},
+                                {"type":"agentMessage","id":"a1","text":"575 GiB left."}]},
+            {"id":"t2","items":[{"type":"userMessage","id":"u2","content":[{"type":"text","text":"Thanks"}]}]}]}}})"));
+        assert(f.state.thread=="saved-thread_1" && f.state.conversation=="saved-thread_1" && f.state.status=="Conversation resumed");
+        assert(f.state.messages.size()==3 && f.state.messages[0].user && f.state.messages[0].text=="Free space?");
+        assert(!f.state.messages[1].user && f.state.messages[1].text=="575 GiB left." && f.state.messages[2].text=="Thanks");
+        assert(f.outgoing.size()==4 && !f.state.busy);
+        // /new leaves it between turns only, and the next launch no longer resumes it.
+        assert(f.submit("Next") && !f.newThread());
+        assert(f.ingest(R"({"id":4,"result":{"turn":{"id":"turn-1"}}})"));
+        assert(f.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})"));
+        auto count=f.outgoing.size();
+        assert(f.newThread() && f.state.thread.empty() && f.state.conversation.empty() && f.state.messages.empty());
+        auto start=Json::parse(f.outgoing.back());assert(f.outgoing.size()==count+1 && start["method"]=="thread/start");
+        assert(!f.newThread() && f.outgoing.size()==count+1);
+        assert(f.ingest(Json({{"id",start["id"]},{"result",{{"thread",{{"id","fresh"}}}}}}).dump()));
+        assert(f.state.thread=="fresh" && f.state.conversation.empty() && f.state.status=="Ready");
+        // A new thread is only remembered once a turn has started in it.
+        assert(f.submit("Hi") && f.ingest(Json({{"id",start["id"].get<int>()+1},{"result",{{"turn",{{"id","turn-2"}}}}}}).dump()));
+        assert(f.state.conversation=="fresh");
+        // A reconnection resumes the remembered conversation instead of starting a new one.
+        f.disconnect();assert(f.state.conversation=="fresh");
+        f.begin(f.state.conversation);const auto init=Json::parse(f.outgoing.back())["id"].get<int>();
+        f.ingest(Json({{"id",init},{"result",Json::object()}}).dump());
+        f.ingest(Json({{"id",init+1},{"result",{{"account",{{"type","chatgpt"}}}}}}).dump());
+        resume=Json::parse(f.outgoing.back());assert(resume["method"]=="thread/resume" && resume["params"]["threadId"]=="fresh");
+    }
+    {
+        // A conversation that cannot be resumed is forgotten and a new one starts, without a prompt.
+        Protocol f;f.begin("missing");f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(f.ingest(R"({"id":3,"error":{"message":"no rollout found"}})"));
+        auto start=Json::parse(f.outgoing.back());
+        assert(start["method"]=="thread/start" && start["id"]==4 && start["params"]["allowProviderModelFallback"]==false);
+        assert(!start["params"].contains("threadId") && f.state.conversation.empty() && !f.state.threadFailed);
+        assert(f.state.status=="The previous conversation could not be resumed. A new one has started.");
+        assert(f.ingest(R"({"id":4,"result":{"thread":{"id":"replacement"}}})"));
+        assert(f.state.thread=="replacement" && f.state.messages.empty() && f.state.status!="Ready" && f.outgoing.size()==5);
+        // A malformed saved ID, or the gameplay companion, never resumes anything.
+        for(auto saved:{"../etc","bad id",""}){
+            Protocol g;g.begin(saved);g.ingest(R"({"id":1,"result":{}})");g.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+            assert(Json::parse(g.outgoing.back())["method"]=="thread/start" && g.state.conversation.empty());
+        }
+        Protocol game{true};game.begin("saved");game.ingest(R"({"id":1,"result":{}})");game.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(Json::parse(game.outgoing.back())["method"]=="thread/start" && !game.newThread());
+        assert(game.ingest(R"({"id":3,"result":{"thread":{"id":"g"}}})") && game.submit("Where now?"));
+        assert(game.ingest(R"({"id":4,"result":{"turn":{"id":"gt"}}})") && game.state.conversation.empty());
+    }
+    {
         // A long turn must not push out the details of an item still waiting for approval.
         Protocol f;f.begin();
         assert(f.ingest(R"({"method":"item/started","params":{"item":{"type":"fileChange","id":"a-patch","changes":[{"path":"/data/a.txt","kind":{"type":"update"},"diff":"-old\n+new"}]}}})"));

@@ -97,7 +97,7 @@ are not connected to the payload yet. No new controller shortcut is enabled.
 | Triangle | Start / finish dictation |
 | Square | Open / close the controller keyboard |
 | Cross | Enter a key / confirm a choice |
-| Options | Send the prompt (`/quit` opens the exit confirmation) |
+| Options | Send the prompt (`/quit` opens the exit confirmation, `/new` starts a new conversation) |
 | Touchpad click | Open the exit confirmation |
 | L1 | Sign in to ChatGPT |
 | R1 | French / English, only on a French PS5 while idle |
@@ -113,7 +113,7 @@ press Cross, or press Circle to go back. It is available even while disconnected
 or during dictation, a response or an approval request. Confirming stops dictation,
 declines pending approvals, requests interruption of the active turn and closes
 the connection before releasing application resources and exiting. An action
-already started is not rolled back; this prototype cannot resume the conversation.
+already started is not rolled back; the conversation resumes at the next launch.
 
 Approval requests for commands and file changes appear in a window with
 scrollable details. Under the title, short plain-language lines describe the
@@ -196,10 +196,24 @@ console network must be trusted.
 This first prototype supports one active conversation with chronological
 messages, streaming responses, thinking/replying states and controller input.
 Up/down scrolls through session messages (64 recent messages, up to 1 MiB of
-text). Conversation resumption after closing, a file browser and a full diff
-view are not available yet. A disconnect stops the app-server for that session;
-an action already started may continue or may already have modified files.
-It is not rolled back. Prompts are never automatically resent.
+text). A file browser and a full diff view are not available yet.
+
+The app remembers the Codex thread of the last conversation once a prompt has
+been sent in it; only its ID is stored, in the title's own storage
+(`/download0/codex-ps5-conversation`), while Codex keeps the conversation in
+`/data/codex-ps5/home`. At the next launch, and after a reconnection to the
+engine, the app resumes that thread with `thread/resume`, shows its stored
+prompts and replies, and reads **Conversation resumed**. Approval decisions,
+commands and file changes of earlier turns are not shown again. If Codex cannot
+resume it, the app forgets it, starts a new conversation and says so in the status
+line. To leave a conversation, enter `/new` and press Options while Codex is idle:
+the screen is cleared and a new conversation starts; the previous one stays in the
+Codex state but is no longer resumed. The in-game companion never resumes a
+conversation.
+
+A disconnect stops the app-server for that session; an action already started
+may continue or may already have modified files. It is not rolled back. A turn
+interrupted by a disconnect is not continued, and prompts are never automatically resent.
 If Codex cannot start a conversation (for example when the model is
 unavailable), the error stays in the status line and the Send button reads **Retry**.
 Pressing Options starts

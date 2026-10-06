@@ -3,11 +3,12 @@
 #include "platform.hpp"
 namespace assistant {
 namespace platform=botty::platform;
-bool Client::start(){return platform::startWorker(run,this,&worker_);}
+bool Client::start(){saved_=platform::loadConversation();return platform::startWorker(run,this,&worker_);}
 void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
 bool Client::submit(std::string text){std::lock_guard lock(mutex_);return protocol_.submit(text);}
+bool Client::newConversation(){std::lock_guard lock(mutex_);return protocol_.newThread();}
 void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
 void Client::decide(bool accept){std::lock_guard lock(mutex_);protocol_.decide(accept);}
 void* Client::run(void* p){static_cast<Client*>(p)->loop();return nullptr;}
@@ -21,11 +22,14 @@ void Client::loop(){
              if(protocol_.state.status!=status){protocol_.state.status=status;++protocol_.state.revision;}}
             platform::sleep(500000);continue;
         }
-        {std::lock_guard lock(mutex_);protocol_.begin();}
+        {std::lock_guard lock(mutex_);protocol_.begin(saved_);}
         std::string incoming;bool valid=true;std::uint64_t quitDeadline=0;
         while(valid){
-            std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;
-            {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);}
+            std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;std::string conversation;
+            {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);
+             conversation=protocol_.state.conversation;}
+            // Remember the conversation for the next launch or reconnection.
+            if(conversation!=saved_){saved_=std::move(conversation);platform::saveConversation(saved_);}
             for(const auto& line:queue){
                 std::size_t offset=0;
                 while(offset<line.size()){

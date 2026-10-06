@@ -42,11 +42,13 @@ static std::string instructions(){
                     "Report unsupported capabilities honestly instead of guessing. "
                     "Do not mention implementation details or sandboxing unless asked.";
 }
+bool Protocol::threadPending() const {
+    for(const auto& item:pending_)if(item.second=="thread/start" || item.second=="thread/resume")return true;
+    return false;
+}
 void Protocol::startThread(){
-    if(!state.authenticated || !state.thread.empty())return;
-    for(const auto& item:pending_)if(item.second=="thread/start")return;
-    request("thread/start",{{"model","gpt-6.1-sol"},{"allowProviderModelFallback",false},
-                    {"config",{{"model_reasoning_effort","low"}}},
+    if(!state.authenticated || !state.thread.empty() || threadPending())return;
+    Json params={{"model","gpt-6.1-sol"},{"config",{{"model_reasoning_effort","low"}}},
                     {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy",gameplay_?"never":"untrusted"},
                     {"sandbox",gameplay_?"read-only":"danger-full-access"},{"developerInstructions",
                     gameplay_?"You are a voice companion helping the user play a game on PS5. "
@@ -54,17 +56,58 @@ void Protocol::startThread(){
                     "briefly and naturally for spoken playback, without Markdown. "
                     "Give actionable help, avoid unsolicited spoilers, and ask a short question "
                     "if the game or situation cannot be identified. Never invent what the image shows. "
-                    "Do not modify files, run console commands, or control the game.":instructions()}});
+                    "Do not modify files, run console commands, or control the game.":instructions()}};
+    if(!resume_.empty()){params["threadId"]=resume_;request("thread/resume",std::move(params));return;}
+    params["allowProviderModelFallback"]=false;
+    request("thread/start",std::move(params));
 }
 // After a failed thread/start, a new attempt starts only when the user asks for one.
 bool Protocol::retryThread(){
-    if(!state.ready || !state.authenticated || !state.thread.empty())return false;
-    for(const auto& item:pending_)if(item.second=="thread/start")return false;
+    if(!state.ready || !state.authenticated || !state.thread.empty() || threadPending())return false;
     startThread();state.threadFailed=false;state.status="Starting a new conversation...";++state.revision;
     return true;
 }
-void Protocol::begin(){
+// Leaves the current conversation (kept by Codex) for a new one, only between turns.
+bool Protocol::newThread(){
+    if(gameplay_ || !state.ready || !state.authenticated || state.busy || !state.approvals.empty() || threadPending())return false;
+    state.thread.clear();state.conversation.clear();resume_.clear();state.messages.clear();state.response.clear();
+    state.turnStatus.clear();state.threadFailed=false;items_.clear();++state.chatRevision;
+    startThread();state.status="Starting a new conversation...";++state.revision;
+    return true;
+}
+// Shows the stored messages of a resumed thread; its approvals and running items are not restored.
+void Protocol::restore(const Json& thread){
+    state.messages.clear();
+    const auto turns=thread.find("turns");
+    if(turns!=thread.end() && turns->is_array())for(const auto& turn:*turns){
+        const auto items=turn.find("items");
+        if(items==turn.end() || !items->is_array())continue;
+        for(const auto& item:*items){
+            const auto type=field(item,"type");std::string text;
+            if(type=="agentMessage")text=field(item,"text");
+            else if(type=="userMessage" && item.contains("content") && item["content"].is_array())
+                for(const auto& part:item["content"])if(field(part,"type")=="text"){if(!text.empty())text+='\n';text+=field(part,"text");}
+            if(text.empty() || (type!="agentMessage" && type!="userMessage"))continue;
+            if(text.size()>262144){ // cut on a UTF-8 boundary
+                std::size_t end=262144;while(end && (static_cast<unsigned char>(text[end])&0xc0)==0x80)--end;text.resize(end);
+            }
+            state.messages.push_back({type=="userMessage",std::move(text),field(item,"id")});
+        }
+    }
+    std::size_t bytes=0;for(const auto& m:state.messages)bytes+=m.text.size();
+    while(!state.messages.empty() && (state.messages.size()>64 || bytes>1048576)){
+        bytes-=state.messages.front().text.size();state.messages.pop_front();
+    }
+    ++state.chatRevision;
+}
+static bool threadId(std::string_view id){
+    return !id.empty() && id.size()<=128 && std::all_of(id.begin(),id.end(),[](char c){
+        return (c>='0' && c<='9') || (c>='a' && c<='z') || (c>='A' && c<='Z') || c=='-' || c=='_';});
+}
+void Protocol::begin(std::string_view resume){
+    resume_=!gameplay_ && threadId(resume)?std::string(resume):std::string(); // may view state.conversation
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
+    state.conversation=resume_;
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
@@ -180,6 +223,11 @@ bool Protocol::ingest(std::string_view line){
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
             if(requestMethod=="thread/start")state.threadFailed=true;
+            // A saved conversation that cannot be resumed is forgotten; a new one starts, without any prompt.
+            if(requestMethod=="thread/resume"){
+                resume_.clear();state.conversation.clear();startThread();
+                state.status="The previous conversation could not be resumed. A new one has started.";
+            }
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {
@@ -189,8 +237,17 @@ bool Protocol::ingest(std::string_view line){
             } else if(requestMethod=="thread/start"){
                 state.thread=field(object(r,"thread"),"id");
                 if(state.status=="Starting a new conversation...")state.status="Ready";
+            } else if(requestMethod=="thread/resume"){
+                const auto& thread=object(r,"thread");state.thread=field(thread,"id");
+                if(!threadId(state.thread)){
+                    state.thread.clear();resume_.clear();state.conversation.clear();startThread();
+                    state.status="The previous conversation could not be resumed. A new one has started.";
+                } else {state.conversation=state.thread;restore(thread);state.status="Conversation resumed";}
             }
-            else if(requestMethod=="turn/start"){state.turn=field(object(r,"turn"),"id");flushInterrupt();}
+            else if(requestMethod=="turn/start"){
+                state.turn=field(object(r,"turn"),"id");flushInterrupt();
+                if(!gameplay_)state.conversation=state.thread;
+            }
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");
                 state.status="Sign in on your phone using the displayed code.";

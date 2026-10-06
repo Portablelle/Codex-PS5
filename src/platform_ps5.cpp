@@ -10,6 +10,7 @@ std::uint64_t sceKernelGetProcessTime();
 int sceKernelUsleep(unsigned);
 int sceKernelOpen(const char*,int,mode_t);
 std::int64_t sceKernelWrite(int,const void*,std::size_t);
+std::int64_t sceKernelRead(int,void*,std::size_t);
 int sceKernelClose(int);
 int scePthreadCreate(void**,const void*,void* (*)(void*),void*,const char*);
 int scePthreadJoin(void*,void**);
@@ -84,4 +85,18 @@ bool startWorker(void* (*entry)(void*),void* context,void** handle) noexcept {
     return scePthreadCreate(handle,nullptr,entry,context,"codex-api")==0;
 }
 void joinWorker(void* handle) noexcept {(void)scePthreadJoin(handle,nullptr);}
+// Only the thread ID is stored; the conversation itself stays in the Codex home on /data.
+constexpr const char* conversationFile="/download0/codex-ps5-conversation";
+std::string loadConversation() {
+    const int fd=sceKernelOpen(conversationFile,O_RDONLY,0);
+    if(fd<0)return {};
+    char bytes[129]{};const auto n=sceKernelRead(fd,bytes,sizeof(bytes));(void)sceKernelClose(fd);
+    return n>0 && n<static_cast<std::int64_t>(sizeof(bytes))?std::string(bytes,static_cast<std::size_t>(n)):std::string();
+}
+void saveConversation(std::string_view thread) noexcept {
+    const int fd=sceKernelOpen(conversationFile,O_WRONLY|O_CREAT|O_TRUNC,0600);
+    if(fd<0){log("Conversation not saved");return;}
+    if(!thread.empty() && sceKernelWrite(fd,thread.data(),thread.size())!=static_cast<std::int64_t>(thread.size()))log("Conversation not saved");
+    (void)sceKernelClose(fd);
+}
 }

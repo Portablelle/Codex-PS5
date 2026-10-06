@@ -42,7 +42,9 @@ int main(){
     assert(language::tr("SIGN IN TO CHATGPT")=="CONNEXION À CHATGPT");
     assert(language::tr("Finish signing in on your phone.")=="Termine la connexion sur ton téléphone.");
     assert(language::tr("1 · Open")=="1 · Ouvre" && language::tr("2 · Enter the code")=="2 · Saisis le code");
-    assert(language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation cannot be resumed in the application.").starts_with("La dictee sera arretee"));
+    assert(language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation will resume at the next launch.")=="La dictee sera arretee et Codex sera deconnecte.\nCette conversation reprendra au prochain lancement.");
+    assert(language::tr("Conversation resumed")=="Conversation reprise");
+    assert(language::tr("The previous conversation could not be resumed. A new one has started.").starts_with("La conversation precedente n'a pas pu"));
     // Every approval summary is translated.
     assert(language::tr("Building code")=="Compilation de code");
     assert(language::tr("Changing a process priority")=="Modification de la priorité d'un processus");

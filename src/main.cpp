@@ -305,7 +305,7 @@ void quitSheet(Canvas& c){
     constexpr unsigned x=(1920-width)/2,y=(1080-height)/2,cx=x+64;
     c.shade(184);c.rounded(x,y,width,height,32,edge);c.rounded(x+1,y+1,width-2,height-2,31,surface);
     c.label(cx,y+56,assistant::language::tr("Quit Codex PS5?"),44,ink);
-    const auto body=assistant::language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation cannot be resumed in the application.");
+    const auto body=assistant::language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation will resume at the next launch.");
     unsigned line=0;for(const auto& row:wrap(c,body,width-128,28))c.label(cx,y+132+40*line++,std::string_view(body).substr(row.start,row.length),28,soft);
     const unsigned buttons=y+height-56-72;
     button(c,cx,buttons,assistant::language::tr("Cancel"),!confirmQuit);
@@ -356,8 +356,8 @@ bool draw(Canvas& c) noexcept {
     }
     const auto commandStart=composer.find_first_not_of(" \t\r\n");
     const auto commandEnd=composer.find_last_not_of(" \t\r\n");
-    const bool quitCommand=commandStart!=std::string::npos &&
-        composer.substr(commandStart,commandEnd-commandStart+1)=="/quit";
+    const auto command=commandStart==std::string::npos?std::string():composer.substr(commandStart,commandEnd-commandStart+1);
+    const bool quitCommand=command=="/quit";
     if(!quitting && ((pressed&PS5_PAD_BUTTON_TOUCH_PAD) ||
         ((pressed&PS5_PAD_BUTTON_OPTIONS) && quitCommand))){
         quitting=true;confirmQuit=false;pressed=0;++uiRevision;
@@ -389,7 +389,9 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_SQUARE)keyboard=!keyboard;
         // Without a conversation (thread/start failed), Options retries it and keeps the prompt.
         if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !composer.empty()){
-            if(client.submit(composer)){composer.clear();scroll=0;followConversation=true;}
+            // /new leaves the resumed conversation for a new one; it is never sent as a prompt.
+            if(command=="/new"){if(client.newConversation()){composer.clear();scroll=0;followConversation=true;}}
+            else if(client.submit(composer)){composer.clear();scroll=0;followConversation=true;}
         }
         if(keyboard){
             const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());

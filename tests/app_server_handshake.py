@@ -30,7 +30,11 @@ with tempfile.TemporaryDirectory(prefix='codex-ps5-rpc-') as home:
   result=response(4)
   assert 'result' in result,result
   assert result['result']['thread']['id']
-  print('Codex app-server: initialize, account/read, normal and gameplay thread/start accepted; no prompt sent')
+  # The app resumes its saved thread and starts a new one when Codex refuses it.
+  send({'id':5,'method':'thread/resume','params':{'threadId':'00000000-0000-0000-0000-000000000000','cwd':home,'approvalPolicy':'untrusted','sandbox':'danger-full-access'}})
+  result=response(5)
+  assert 'error' in result,result
+  print('Codex app-server: initialize, account/read, normal and gameplay thread/start accepted, unknown thread/resume refused; no prompt sent')
  finally:
   p.terminate()
   try:p.wait(timeout=5)
