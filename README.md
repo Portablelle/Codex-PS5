@@ -37,7 +37,8 @@ At startup, the PS5 system language determines the interface language: French
 or if reading the setting fails. On a French console only, **R1** switches
 between French and English while Codex and the microphone are idle.
 The choice applies to the current session; the next launch uses the system
-language again. This changes only interface text; it sends no request to OpenAI
+language again. This changes only interface text and the controller keyboard
+layout; it sends no request to OpenAI
 and preserves the signed-in account and the exact conversation. Messages are
 sent as entered, and Codex keeps the conversation language unless the user asks
 for another language. Dictation detects the spoken language automatically.

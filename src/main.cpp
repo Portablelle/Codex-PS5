@@ -5,6 +5,7 @@
 #include "platform.hpp"
 #include "markdown.hpp"
 #include "language.hpp"
+#include "keyboard.hpp"
 #include <array>
 #include <algorithm>
 #include <vector>
@@ -25,20 +26,6 @@ bool followConversation=true;
 unsigned chatScrollMaximum=0;
 constexpr Color rgb(unsigned r,unsigned g,unsigned b){return static_cast<Color>(0xff000000|r|(g<<8)|(b<<16));}
 constexpr auto bg=rgb(10,15,23),card=rgb(19,29,41),ink=rgb(233,241,250),muted=rgb(152,171,193),accent=rgb(84,231,167);
-constexpr std::array<std::string_view,50> englishKeys={
-    "q","w","e","r","t","y","u","i","o","p",
-    "a","s","d","f","g","h","j","k","l","delete",
-    "z","x","c","v","b","n","m",".","_","-",
-    "0","1","2","3","4","5","6","7","8","9",
-    "é","è","à","ç","?",":","shift","close","space","/"
-};
-constexpr std::array<std::string_view,50> frenchKeys={
-    "a","z","e","r","t","y","u","i","o","p",
-    "q","s","d","f","g","h","j","k","l","m",
-    "w","x","c","v","b","n",".","_","-","delete",
-    "0","1","2","3","4","5","6","7","8","9",
-    "é","è","à","ç","?",":","shift","close","space","/"
-};
 void eraseCodepoint(std::string& s){if(s.empty())return;auto n=s.size()-1;while(n && (static_cast<unsigned char>(s[n])&0xc0)==0x80)--n;s.resize(n);}
 void lines(Canvas& c,unsigned x,unsigned y,std::string_view value,unsigned width,unsigned count,unsigned offset=0){
     unsigned row=0,seen=0;
@@ -133,7 +120,9 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_CIRCLE){client.decide(false);approvalIdentity.clear();}
     } else {
         approvalIdentity.clear();
-        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working)assistant::language::toggle();
+        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working){
+            if(assistant::language::toggle())key=assistant::keyboard::follow(key,assistant::language::isFrench());
+        }
         if(pressed&PS5_PAD_BUTTON_L1)client.login();
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
@@ -142,7 +131,7 @@ bool draw(Canvas& c) noexcept {
             client.submit(composer);composer.clear();scroll=0;followConversation=true;
         }
         if(keyboard){
-            const auto& keys=assistant::language::isFrench()?frenchKeys:englishKeys;
+            const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());
             if(pressed&PS5_PAD_BUTTON_LEFT)key=(key+49)%50;
             if(pressed&PS5_PAD_BUTTON_RIGHT)key=(key+1)%50;
             if(pressed&PS5_PAD_BUTTON_UP)key=(key+40)%50;
@@ -194,7 +183,7 @@ bool draw(Canvas& c) noexcept {
     c.label(75,980,assistant::language::tr(composerNotice.empty()?mic.status:composerNotice),24,accent);
     c.label(75,1020,assistant::language::tr("△: dictate   □: keyboard   ☰: send   \uE000: sign in   ○: cancel   Touchpad: quit"),20,muted);
     if(keyboard){
-        const auto& keys=assistant::language::isFrench()?frenchKeys:englishKeys;
+        const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());
         for(unsigned i=0;i<keys.size();++i){unsigned x=75+(i%10)*177,y=780+(i/10)*35;
             if(i==key)c.rounded(x-3,y-1,167,32,6,rgb(39,91,71));c.label(x+5,y,assistant::language::tr(keys[i]),20,ink);}
     }
