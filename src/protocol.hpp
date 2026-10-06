@@ -12,7 +12,7 @@ std::string field(const Json& value,const char* key);
 struct Approval {Json id;std::string method,description;bool reviewable=true;std::string summary;};
 struct Message {bool user=false;std::string text,itemId;};
 struct State {
-    bool connected=false,ready=false,busy=false,authenticated=false;
+    bool connected=false,ready=false,busy=false,authenticated=false,threadFailed=false;
     std::string status="Starting engine...",thread,turn,response,code,url;
     std::deque<Approval> approvals;
     std::deque<Message> messages;

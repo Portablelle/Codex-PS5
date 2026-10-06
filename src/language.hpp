@@ -165,6 +165,7 @@ inline std::string tr(std::string_view english) {
         {"Allow","Autoriser"},
         {"Cancel","Annuler"},
         {"Send","Envoyer"},
+        {"Retry","Réessayer"},
         {"Sign in","Connexion"},
         {"Quit","Quitter"},
     };

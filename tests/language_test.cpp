@@ -23,6 +23,7 @@ int main(){
     assert(language::tr("Dictate")=="Dicter" && language::tr("Keyboard")=="Clavier");
     assert(language::tr("Scroll")=="Défiler" && language::tr("Send")=="Envoyer");
     assert(language::tr("Sign in")=="Connexion");
+    assert(language::tr("Retry")=="Réessayer");
     // Short labels must not capture longer messages that share their prefix.
     assert(language::tr("Ready")=="Pret");
     assert(language::tr("Starting a new conversation...")=="Démarrage d'une nouvelle conversation...");

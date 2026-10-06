@@ -51,7 +51,7 @@ void Protocol::startThread(){
 bool Protocol::retryThread(){
     if(!state.ready || !state.authenticated || !state.thread.empty())return false;
     for(const auto& item:pending_)if(item.second=="thread/start")return false;
-    startThread();state.status="Starting a new conversation...";++state.revision;
+    startThread();state.threadFailed=false;state.status="Starting a new conversation...";++state.revision;
     return true;
 }
 void Protocol::begin(){
@@ -162,6 +162,7 @@ bool Protocol::ingest(std::string_view line){
         if(j.contains("error")) {
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
+            if(requestMethod=="thread/start")state.threadFailed=true;
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {

@@ -32,4 +32,11 @@ long = render(PREVIEW_STATUS=error)
 assert region(short, 1590, 50, 1920, 110) == region(long, 1590, 50, 1920, 110), 'status overlaps model label'
 # Failing statuses are still shown in full above the composer.
 assert lit(region(long, 96, 760, 1824, 860)) > lit(region(short, 96, 760, 1824, 860)) + 2000
-print('Preview: sign-in with keyboard, long status clipping and error notice passed')
+
+# After a failed thread/start, the composer button stays active and offers a retry.
+def accent(pixels):
+    return sum(1 for i in range(0, len(pixels), 3) if pixels[i] > 200 and 120 < pixels[i + 1] < 220 and pixels[i + 2] < 90)
+failed = render(PREVIEW_THREAD_FAILED='1')
+assert accent(region(failed, 1400, 850, 1824, 990)) > 2000, 'retry button looks disabled'
+assert region(failed, 1400, 850, 1824, 990) != region(short, 1400, 850, 1824, 990), 'retry button reads Send'
+print('Preview: sign-in with keyboard, long status clipping, error notice and retry button passed')
