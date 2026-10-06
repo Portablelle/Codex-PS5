@@ -43,6 +43,13 @@ int main(){
     // Changing PATH means a bare name no longer names the system tool.
     for(auto command:{"PATH=/data/codex-ps5/workspace ls","PATH=.:/bin ls","env PATH=/tmp ls"})
         assert(commandSummary(command)=="Running a program");
+    // Text tools that write files or run commands through their own options.
+    assert(commandSummary("sort -o /data/important f")=="Writing to a file" && commandSummary("sort f")=="Transforming text");
+    assert(commandSummary("sed 'w /data/out' f")=="Writing to a file" && commandSummary("sed -n 's/a/b/w out' f")=="Writing to a file");
+    assert(commandSummary("sed 's/a/b/e' f")=="Running a program" && commandSummary("sed -f edit.sed f")=="Running a script");
+    assert(commandSummary("sed 's/hello/world/' notes.txt")=="Transforming text" && commandSummary("sed -e 's/x/y/g' -i f")=="Editing a file");
+    assert(commandSummary("awk 'BEGIN{system(\"rm -rf /data\")}'")=="Running a script");
+    assert(commandSummary("awk '{print > \"/data/x\"}' f")=="Running a script");
     // A tool name is trusted only from system or bundled runtime directories.
     assert(commandSummary("/bin/rm a")=="Deleting a file" && commandSummary("/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/ls")=="Listing files");
     for(auto command:{"/data/codex-ps5/workspace/ls","./ls","bin/ls","/data/codex-ps5/runtime/tools-x/ls","/data/codex-ps5/workspace/sh -c 'ls'"})

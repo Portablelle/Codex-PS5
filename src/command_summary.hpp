@@ -103,7 +103,29 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     if(name=="tar" || name=="zip" || name=="unzip" || name=="gzip" || name=="gunzip")return "Working with an archive";
     if(name=="dd")return "Copying raw data";
     if(name=="split")return "Splitting a file";
-    if(name=="sed")return inPlace?"Editing a file":"Transforming text";
+    if(name=="sed"){
+        // Scripts can write files (w, W) or run commands (e): look at the flags of a
+        // single s command, otherwise at the whole script.
+        std::vector<std::string_view> scripts;bool explicitScript=false;
+        for(std::size_t i=1;i<w.size();++i){
+            if(w[i]=="-f" || w[i].starts_with("--file"))return "Running a script";
+            if(w[i]=="-e" && i+1<w.size()){scripts.push_back(w[++i]);explicitScript=true;}
+        }
+        if(!explicitScript)for(std::size_t i=1;i<w.size();++i)if(!w[i].starts_with("-")){scripts.push_back(w[i]);break;}
+        bool write=false,run=false;
+        for(auto script:scripts){
+            std::string_view tail=script;
+            if(script.size()>2 && script[0]=='s' && script.find_first_of(";\n}")==std::string_view::npos){
+                const char d=script[1];std::size_t p=2;
+                for(int seen=0;p<script.size() && seen<2;++p)if(script[p]==d)++seen;
+                tail=script.substr(p);
+            }
+            if(tail.find_first_of("wW")!=std::string_view::npos)write=true;
+            if(tail.find('e')!=std::string_view::npos)run=true;
+        }
+        if(run)return "Running a program";
+        return write?"Writing to a file":inPlace?"Editing a file":"Transforming text";
+    }
     if(name=="ed" || name=="apply_patch" || name=="patch")return "Editing a file";
     if(name=="sponge" || name=="tee")return "Writing to a file";
     if(name=="uudecode")return "Decoding a file";
@@ -123,8 +145,10 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     if(name=="cat" || name=="head" || name=="tail" || name=="strings" || name=="od" || name=="nl" || name=="less" || name=="more" || name=="hexdump" || name=="xxd")return "Reading a file";
     if(name=="wc")return "Counting lines and words";
     if(name=="cmp" || name=="comm" || name=="diff")return "Comparing files";
+    if(name=="awk" || name=="gawk" || name=="mawk")return "Running a script";
+    if(name=="sort" && (has("-o") || has("--output")))return "Writing to a file";
     if(name=="sort" || name=="uniq" || name=="cut" || name=="tr" || name=="rev" || name=="fold" || name=="expand" ||
-       name=="unexpand" || name=="paste" || name=="join" || name=="tsort" || name=="awk")return "Transforming text";
+       name=="unexpand" || name=="paste" || name=="join" || name=="tsort")return "Transforming text";
     if(name=="du" || name=="df")return "Checking storage space";
     if(name=="ps" || name=="top")return "Listing processes";
     if(name=="cksum" || name=="md5sum" || name.starts_with("sha"))return "Computing checksums";
