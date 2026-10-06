@@ -79,6 +79,7 @@ int main(){
     assert(commandSummary("tar -cxf a")=="Working with an archive" && commandSummary("tar --to-command=sh -xf a")=="Running a program");
     assert(commandSummary("tar -I zstd -xf a")=="Running a program");
     assert(commandSummary("tar --to-c=sh -xf a")=="Running a program" && commandSummary("tar --use-c=./x -xf a")=="Running a program");
+    assert(commandSummary("tar --rs=/data/x -xf localhost:a")=="Running a program");
     assert(commandSummary("TAR_OPTIONS=--to-command=sh tar -xf a")=="Running a program");
     assert(commandSummary("env 'BASH_FUNC_ls%%=() { rm a; }' bash -c ls")=="Running a program");
     assert(commandSummary("tar -rf a b")=="Working with an archive");

@@ -149,7 +149,7 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
                 const auto key=o.substr(0,o.find('='));
                 // Options that run another program, including GNU abbreviations.
                 for(std::string_view run:{"--to-command","--use-compress-program","--info-script","--new-volume-script","--checkpoint-action","--rsh-command"})
-                    if(key.size()>4 && run.starts_with(key))return "Running a program";
+                    if(key.size()>3 && run.starts_with(key))return "Running a program";
                 if(key.size()>3 && std::string_view("--create").starts_with(key))create=true;
                 else if(key.size()>3 && (std::string_view("--extract").starts_with(key) || key=="--get"))extract=true;
                 else if(key.size()>3 && std::string_view("--list").starts_with(key))list=true;
