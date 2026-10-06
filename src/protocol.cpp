@@ -128,6 +128,7 @@ bool Protocol::submit(std::string_view text,std::string_view imagePath){
     state.busy=true;interruptPending_=false;state.response.clear();state.status="Codex is thinking...";
     state.turnStatus.clear();
     ++turnSequence_;
+    if(!gameplay_)state.conversation=state.thread; // remembered before the turn reaches Codex
     state.messages.push_back({true,std::string(text),{}});++state.chatRevision;
     while(state.messages.size()>64)state.messages.pop_front();
     auto input=Json::array({{{"type","text"},{"text",std::string(text)},{"text_elements",Json::array()}}});
@@ -247,7 +248,6 @@ bool Protocol::ingest(std::string_view line){
             }
             else if(requestMethod=="turn/start"){
                 state.turn=field(object(r,"turn"),"id");flushInterrupt();
-                if(!gameplay_)state.conversation=state.thread;
             }
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");

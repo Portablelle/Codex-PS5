@@ -179,9 +179,8 @@ int main(){
         assert(!f.newThread() && f.outgoing.size()==count+1);
         assert(f.ingest(Json({{"id",start["id"]},{"result",{{"thread",{{"id","fresh"}}}}}}).dump()));
         assert(f.state.thread=="fresh" && f.state.conversation.empty() && f.state.status=="Ready");
-        // A new thread is only remembered once a turn has started in it.
-        assert(f.submit("Hi") && f.ingest(Json({{"id",start["id"].get<int>()+1},{"result",{{"turn",{{"id","turn-2"}}}}}}).dump()));
-        assert(f.state.conversation=="fresh");
+        // A new thread is remembered once a prompt is sent in it, before Codex acknowledges the turn.
+        assert(f.submit("Hi") && f.state.conversation=="fresh");
         // A reconnection resumes the remembered conversation instead of starting a new one.
         f.disconnect();assert(f.state.conversation=="fresh");
         f.begin(f.state.conversation);const auto init=Json::parse(f.outgoing.back())["id"].get<int>();
@@ -203,7 +202,7 @@ int main(){
         assert(f.retryThread() && Json::parse(f.outgoing.back())["method"]=="thread/start" && f.outgoing.size()==6);
         assert(f.ingest(R"({"id":5,"result":{"thread":{"id":"replacement"}}})"));
         assert(f.state.thread=="replacement" && f.state.messages.empty() && f.state.conversation=="missing" && f.outgoing.size()==6);
-        assert(f.submit("Hello") && f.ingest(R"({"id":6,"result":{"turn":{"id":"r1"}}})") && f.state.conversation=="replacement");
+        assert(f.submit("Hello") && f.state.conversation=="replacement");
         // A resume answered without a usable thread ID falls back the same way.
         Protocol h;h.begin("kept");h.ingest(R"({"id":1,"result":{}})");h.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
         assert(h.ingest(R"({"id":3,"result":{"thread":{"id":"bad id"}}})") && h.state.thread.empty() && h.state.conversation=="kept");

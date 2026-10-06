@@ -17,5 +17,5 @@ bool startWorker(void* (*entry)(void*),void* context,void** handle) noexcept;
 void joinWorker(void* handle) noexcept;
 // Thread ID of the last conversation, kept in the title's own storage; empty when none.
 std::string loadConversation();
-void saveConversation(std::string_view thread) noexcept;
+bool saveConversation(std::string_view thread) noexcept;
 }

@@ -17,7 +17,7 @@ std::string decisionLine(const Message& message);
 struct State {
     bool connected=false,ready=false,busy=false,authenticated=false,threadFailed=false;
     std::string status="Starting engine...",thread,turn,response,code,url;
-    // Thread the app remembers across launches: set once it holds a turn, cleared for a new conversation.
+    // Thread the app remembers across launches: set when a prompt is sent in it, cleared for a new conversation.
     std::string conversation;
     std::deque<Approval> approvals;
     std::deque<Message> messages;

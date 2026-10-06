@@ -28,8 +28,8 @@ void Client::loop(){
             std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;std::string conversation;
             {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);
              conversation=protocol_.state.conversation;}
-            // Remember the conversation for the next launch or reconnection.
-            if(conversation!=saved_){saved_=std::move(conversation);platform::saveConversation(saved_);}
+            // Remember the conversation for the next launch or reconnection; a failed write is retried.
+            if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
             for(const auto& line:queue){
                 std::size_t offset=0;
                 while(offset<line.size()){

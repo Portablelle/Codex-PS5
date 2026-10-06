@@ -93,10 +93,11 @@ std::string loadConversation() {
     char bytes[129]{};const auto n=sceKernelRead(fd,bytes,sizeof(bytes));(void)sceKernelClose(fd);
     return n>0 && n<static_cast<std::int64_t>(sizeof(bytes))?std::string(bytes,static_cast<std::size_t>(n)):std::string();
 }
-void saveConversation(std::string_view thread) noexcept {
+bool saveConversation(std::string_view thread) noexcept {
     const int fd=sceKernelOpen(conversationFile,O_WRONLY|O_CREAT|O_TRUNC,0600);
-    if(fd<0){log("Conversation not saved");return;}
-    if(!thread.empty() && sceKernelWrite(fd,thread.data(),thread.size())!=static_cast<std::int64_t>(thread.size()))log("Conversation not saved");
-    (void)sceKernelClose(fd);
+    bool saved=fd>=0 && (thread.empty() || sceKernelWrite(fd,thread.data(),thread.size())==static_cast<std::int64_t>(thread.size()));
+    if(fd>=0 && sceKernelClose(fd)<0)saved=false;
+    if(!saved)log("Conversation not saved");
+    return saved;
 }
 }
