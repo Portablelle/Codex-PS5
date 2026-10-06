@@ -3,15 +3,17 @@
 #include "platform.hpp"
 namespace assistant {
 namespace platform=botty::platform;
-bool Client::start(){return platform::startWorker(run,this,&worker_);}
+bool Client::start(){saved_=platform::loadConversation();protocol_.state.conversation=saved_;return platform::startWorker(run,this,&worker_);}
 void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
 bool Client::submit(std::string text){std::lock_guard lock(mutex_);return protocol_.submit(text);}
+bool Client::newConversation(){std::lock_guard lock(mutex_);return protocol_.newThread();}
 void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
 void Client::decide(bool accept){std::lock_guard lock(mutex_);protocol_.decide(accept);}
 void* Client::run(void* p){static_cast<Client*>(p)->loop();return nullptr;}
 void Client::loop(){
+    bool resumeCut=false;
     for(;;){
         {std::lock_guard lock(mutex_);if(stopping_)return;}
         int fd=platform::connectLocal();
@@ -21,11 +23,16 @@ void Client::loop(){
              if(protocol_.state.status!=status){protocol_.state.status=status;++protocol_.state.revision;}}
             platform::sleep(500000);continue;
         }
-        {std::lock_guard lock(mutex_);protocol_.begin();}
+        // The conversation in memory is the one to resume, even when it could not be written yet.
+        // A resume that lost the connection is not repeated: its answer may be too large to read.
+        {std::lock_guard lock(mutex_);protocol_.begin(protocol_.state.conversation,resumeCut);}
         std::string incoming;bool valid=true;std::uint64_t quitDeadline=0;
         while(valid){
-            std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;
-            {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);}
+            std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;std::string conversation;
+            {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);
+             conversation=protocol_.state.conversation;}
+            // Remember the conversation for the next launch or reconnection; a failed write is retried.
+            if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
             for(const auto& line:queue){
                 std::size_t offset=0;
                 while(offset<line.size()){
@@ -53,8 +60,14 @@ void Client::loop(){
             if(incoming.size()>1048576)valid=false;
         }
         platform::closeSocket(fd);
-        {std::lock_guard lock(mutex_);protocol_.disconnect();}
-        platform::sleep(500000);
+        std::string conversation;
+        {std::lock_guard lock(mutex_);resumeCut=protocol_.resuming();protocol_.disconnect();conversation=protocol_.state.conversation;}
+        // Lines read after the last pass may have changed it (a resume answered just before the connection ended).
+        if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
+        {std::lock_guard lock(mutex_);if(stopping_)return;} // quitting: saved above, no reconnect delay
+        // Longer than the service's 1 s SIGTERM grace: the previous engine has exited before
+        // the next one opens the same conversation.
+        platform::sleep(1500000);
     }
 }
 }

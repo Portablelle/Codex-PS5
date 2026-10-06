@@ -128,8 +128,9 @@ Details and rollback steps are in [INSTALL.md](INSTALL.md#updates).
 
 ## Prototype limitations
 
-- Closing the app ends the conversation; conversation resumption is not
-  available yet. Disconnects never resend prompts automatically.
+- The last conversation resumes when the app reopens or reconnects to the
+  engine; enter `/new` and press Options to start a new one. Only messages are
+  restored, and disconnects never resend prompts automatically.
 - Transcription runs on the PS5 CPU and can take time. Always review the text.
   Audio stays on the console; submitted prompts go to the online Codex service.
 - The engine runs with the payload's permissions, without a system sandbox.

@@ -109,8 +109,9 @@ native `eboot.bin`. Use ShadowMount for the title, and an ELF loader for the ser
 | `/data/codex-ps5/home` | ChatGPT credentials and Codex state (`.codex` is hidden) |
 | `/data/codex-ps5/workspace` | Your working files |
 
-Do not delete the entire `/data/codex-ps5` directory. Closing the app already
-ends its current conversation; updates do not add conversation resumption.
+Do not delete the entire `/data/codex-ps5` directory. The app resumes its last
+conversation from the Codex state in `/data/codex-ps5/home`; if that conversation
+cannot be resumed after an update, a new one starts automatically.
 
 To roll back, close the app, reboot, and restore **both** the backed-up title
 folder and its matching service ELF. Preserve the same user-data folders.
