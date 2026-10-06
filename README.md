@@ -100,10 +100,11 @@ use the final `codex-ps5-0.0.2.zip` package.
 
 ## Controls
 
-An experimental in-game voice companion session core and a host probe are
-available; see [INGAME.md](INGAME.md). System-wide overlay, game capture,
-resident session ownership, and spoken playback are not connected on PS5 yet.
-No new controller shortcut is enabled in the native application.
+An experimental in-game voice companion core, resident ELF payload, and host
+probe are available; see [INGAME.md](INGAME.md). The payload owns its conversation
+independently of the native window; the backend supports two independent clients.
+System-wide overlay, game capture, microphone/transcription, and spoken playback
+are not connected to the payload yet. No new controller shortcut is enabled.
 
 | Button | Action |
 | --- | --- |
@@ -215,6 +216,8 @@ With Codex selected, LAUNCH installs and updates the native title, Whisper and
 the engine before starting it. Downloads are verified in 1 MiB blocks.
 The working directory and ChatGPT sign-in are preserved. Close native
 applications before LAUNCH; previous installations are kept as backups.
-Engine 0.0.2 exposes a local control endpoint at 127.0.0.1:49323 for status
-and clean shutdown while idle. The previous engine requires a full reboot
+The engine exposes a local control endpoint at 127.0.0.1:49323 for status
+and clean shutdown while idle. With the resident prototype backend, stop the
+companion and close the native app before updating; an active connection makes
+`POST /stop` return HTTP 409. The previous engine requires a full reboot
 after the first update.
