@@ -118,6 +118,9 @@ are not connected to the payload yet. No new controller shortcut is enabled.
 | Circle | Cancel dictation / interrupt Codex / decline an action |
 | Up / down | Scroll through the response while the keyboard is closed |
 
+The controller keyboard uses AZERTY in French and QWERTY in English. Switching
+the interface language with R1 also switches the keyboard layout immediately.
+
 To close the application, click the touchpad or enter `/quit` and press Options.
 The confirmation defaults to **Cancel**; select **Quit** with left/right and
 press Cross, or press Circle to go back. It is available even while disconnected
