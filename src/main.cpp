@@ -101,6 +101,7 @@ bool draw(Canvas& c) noexcept {
     if(!quitting && ((pressed&PS5_PAD_BUTTON_TOUCH_PAD) ||
         ((pressed&PS5_PAD_BUTTON_OPTIONS) && quitCommand))){
         quitting=true;confirmQuit=false;pressed=0;++uiRevision;
+        if(quitCommand)composer.clear();
     }
     if(quitting){
         if(pressed&(PS5_PAD_BUTTON_LEFT|PS5_PAD_BUTTON_RIGHT))confirmQuit=!confirmQuit;

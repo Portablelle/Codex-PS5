@@ -17,6 +17,12 @@ int main(){
     assert(language::tr("Error: example")=="Erreur: example");
     assert(language::tr("Your prompt...")=="Ton prompt...");
     assert(language::tr("You")=="Toi");
+    assert(language::tr("Quit Codex PS5?")=="Quitter Codex PS5 ?");
+    assert(language::tr("  Cancel          [ Quit ]")=="  Annuler          [ Quitter ]");
+    assert(language::tr("[ Cancel ]          Quit")=="[ Annuler ]          Quitter");
+    assert(language::tr("←/→: choose. ×: confirm. ○: cancel.")=="←/→ : choisir. × : confirmer. ○ : annuler.");
+    assert(language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation cannot be resumed in the application.").starts_with("La dictee sera arretee"));
+    assert(language::tr("△: dictate   □: keyboard   ☰: send   : sign in   ○: cancel   Touchpad: quit").ends_with("Pave tactile : quitter"));
     assert(language::tr("\nDirectory: /data")=="\nDossier : /data");
     assert(language::tr("/data/notes.txt")=="/data/notes.txt");
     language::initialize(1);

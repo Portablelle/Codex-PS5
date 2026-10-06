@@ -96,6 +96,23 @@ int main(){
     assert(p.ingest(R"({"method":"item/completed","params":{"item":{"id":"reply2","type":"agentMessage","text":"There is 575.5 GiB left."}}})"));
     assert(p.state.messages.size()==4 && p.state.messages.back().text=="There is 575.5 GiB left.");
     assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})"));
+    // Quit sequence (Client::stop): decline every pending approval, then interrupt the active turn.
+    p.submit("Run a long task.");
+    assert(p.ingest(R"({"method":"turn/started","params":{"turn":{"id":"quit-turn"}}})"));
+    assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"quit-1","params":{"command":"mv a b"}})"));
+    assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"quit-2","params":{"command":"mv c d"}})"));
+    assert(p.state.busy && p.state.approvals.size()==2);
+    before=p.outgoing.size();
+    while(!p.state.approvals.empty())p.decide(false);
+    p.interrupt();
+    assert(p.outgoing.size()==before+3);
+    reply=Json::parse(p.outgoing[before]);assert(reply["id"]=="quit-1" && reply["result"]["decision"]=="decline");
+    reply=Json::parse(p.outgoing[before+1]);assert(reply["id"]=="quit-2" && reply["result"]["decision"]=="decline");
+    reply=Json::parse(p.outgoing[before+2]);
+    assert(reply["method"]=="turn/interrupt" && reply["params"]["turnId"]=="quit-turn");
+    // Once the turn has ended there is nothing to interrupt, so quitting queues nothing.
+    assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"interrupted"}}})"));
+    before=p.outgoing.size();p.interrupt();assert(p.outgoing.size()==before);
     assert(!p.ingest("[1,2]"));assert(!p.ingest("not json"));
     assert(!p.ingest(R"({"id":9223372036854775807,"result":{}})"));
     p.disconnect();assert(p.outgoing.empty() && p.state.thread.empty());
