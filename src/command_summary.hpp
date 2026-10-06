@@ -11,11 +11,51 @@ namespace assistant {
 // give a generic summary so a harmless-looking command cannot hide what follows.
 std::string_view commandSummary(std::string_view command,unsigned depth=0);
 namespace summary_detail {
+// Variables that change which program or library a bare name runs.
+inline bool redirectsProgram(std::string_view assignment){
+    for(std::string_view v:{"PATH=","LD_","DYLD_","BASH_ENV=","ENV=","IFS=","SHELLOPTS=","BASHOPTS=","PS4="})if(assignment.starts_with(v))return true;
+    return false;
+}
+// What a sed script can do beyond printing: write files (w, W, s///w) or run
+// commands (e, s///e). Addresses and s/y operands are skipped; anything not
+// understood counts as running a program.
+struct SedEffects {bool write=false,run=false;};
+inline SedEffects sedScript(std::string_view s){
+    SedEffects fx;std::size_t i=0;
+    const auto delimited=[&](char d){ // skip to just past the next unescaped d
+        while(i<s.size() && s[i]!=d){if(s[i]=='\n'){fx.run=true;return;}i+=s[i]=='\\'?2:1;}
+        if(i>=s.size())fx.run=true;else ++i;
+    };
+    const auto toEnd=[&]{while(i<s.size() && s[i]!='\n')++i;};
+    while(i<s.size() && !fx.run){
+        const char c=s[i];
+        if(std::string_view(" \t\n;{}!,$0123456789~+").find(c)!=std::string_view::npos){++i;continue;}
+        if(c=='/'){++i;delimited('/');continue;}
+        if(c=='\\'){if(i+1>=s.size()){fx.run=true;break;}const char d=s[i+1];i+=2;delimited(d);continue;}
+        ++i;
+        if(c=='s' || c=='y'){
+            if(i>=s.size()){fx.run=true;break;}
+            const char d=s[i++];delimited(d);delimited(d);
+            if(c=='s')for(;i<s.size() && std::string_view(";}\n").find(s[i])==std::string_view::npos;++i){
+                if(s[i]=='w'){fx.write=true;toEnd();break;}
+                if(s[i]=='e')fx.run=true;
+                else if(std::string_view("gpiImM0123456789 \t").find(s[i])==std::string_view::npos)fx.run=true;
+            }
+        }
+        else if(c=='w' || c=='W'){fx.write=true;toEnd();}
+        else if(c=='e')fx.run=true;
+        else if(c=='a' || c=='i' || c=='c' || c=='r' || c=='R')toEnd();
+        else if(c=='b' || c=='t' || c=='T' || c==':' || c=='q' || c=='Q' || c=='l' || c=='L')
+            while(i<s.size() && std::string_view(";}\n").find(s[i])==std::string_view::npos)++i;
+        else if(std::string_view("pPdDnNgGhHxz=F").find(c)==std::string_view::npos)fx.run=true;
+    }
+    return fx;
+}
 inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     // Skip variable assignments and wrappers that only change how a command runs.
     // A PATH change means a bare name no longer resolves to the system tool.
     while(!w.empty() && w.front().find('=')!=std::string::npos && w.front().front()!='=' && w.front().front()!='-'){
-        if(w.front().starts_with("PATH="))return "Running a program";
+        if(redirectsProgram(w.front()))return "Running a program";
         w.erase(w.begin());
     }
     if(w.empty())return "Setting a variable";
@@ -38,7 +78,7 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
         for(;i<w.size();++i){
             const auto& o=w[i];
             if(o=="--"){++i;break;}
-            if(name=="env" && o.find('=')!=std::string::npos && o.front()!='-'){if(o.starts_with("PATH="))return "Running a program";continue;}
+            if(name=="env" && o.find('=')!=std::string::npos && o.front()!='-'){if(redirectsProgram(o))return "Running a program";continue;}
             if(!o.starts_with("-"))break;
             if(name=="env" && o=="-i")continue;
             if((name=="env" && o=="-u") || (name=="nice" && o=="-n")){++i;continue;}
@@ -96,16 +136,35 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     }
     if(name=="chown" || name=="chgrp")return recursive?"Changing ownership of a folder and its contents":"Changing file ownership";
     if(name=="tar" && w.size()>1){
-        if(w[1].find('c')!=std::string::npos)return "Creating an archive";
-        if(w[1].find('x')!=std::string::npos)return "Extracting an archive";
-        if(w[1].find('t')!=std::string::npos)return "Listing an archive's contents";
+        // The mode can be the first word (bundled "cf"), any short group (letters
+        // after f or C are its argument) or a long option; several modes stay generic.
+        bool create=false,extract=false,list=false,other=false;
+        const auto mode=[&](char c){
+            if(c=='c')create=true;else if(c=='x')extract=true;else if(c=='t')list=true;
+            else if(c=='r' || c=='u' || c=='A')other=true;
+        };
+        for(std::size_t i=1;i<w.size();++i){
+            const std::string_view o=w[i];
+            if(o.starts_with("--")){
+                const auto key=o.substr(0,o.find('='));
+                if(key.size()>3 && std::string_view("--create").starts_with(key))create=true;
+                else if(key.size()>3 && (std::string_view("--extract").starts_with(key) || key=="--get"))extract=true;
+                else if(key.size()>3 && std::string_view("--list").starts_with(key))list=true;
+                else if(key.starts_with("--app") || key.starts_with("--upd") || key.starts_with("--del") || key.starts_with("--conc"))other=true;
+                // Options that run another program.
+                else if(key.starts_with("--to-com") || key.starts_with("--use-com") || key.starts_with("--info-s") ||
+                        key.starts_with("--new-vol") || key.starts_with("--checkpoint-a") || key.starts_with("--rsh"))return "Running a program";
+            } else if(i==1 || o.starts_with("-")){
+                for(std::size_t c=o.starts_with("-")?1:0;c<o.size();++c){if(o[c]=='I' || o[c]=='F')return "Running a program";if(o[c]=='f' || o[c]=='C')break;mode(o[c]);}
+            }
+        }
+        if(other || create+extract+list!=1)return "Working with an archive";
+        return create?"Creating an archive":extract?"Extracting an archive":"Listing an archive's contents";
     }
     if(name=="tar" || name=="zip" || name=="unzip" || name=="gzip" || name=="gunzip")return "Working with an archive";
     if(name=="dd")return "Copying raw data";
     if(name=="split")return "Splitting a file";
     if(name=="sed"){
-        // Scripts can write files (w, W) or run commands (e): look at the flags of a
-        // single s command, otherwise at the whole script.
         // Options follow getopt: grouped (-ne) and attached (-e'w x', -fx) forms count.
         std::vector<std::string_view> scripts;bool explicitScript=false;std::string_view operand;
         for(std::size_t i=1;i<w.size();++i){
@@ -115,6 +174,8 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
             if(o.size()<2 || o[0]!='-'){if(operand.empty())operand=o;continue;}
             for(std::size_t c=1;c<o.size();++c){
                 if(o[c]=='f')return "Running a script";
+                if(o[c]=='i')break; // GNU reads the rest as a backup suffix; the script is then an operand
+                if(std::string_view("nErsuze").find(o[c])==std::string_view::npos)return "Running a program";
                 if(o[c]=='e'){
                     explicitScript=true;
                     if(c+1<o.size())scripts.push_back(o.substr(c+1));else if(i+1<w.size())scripts.push_back(w[++i]);
@@ -124,16 +185,7 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
         }
         if(!explicitScript && !operand.empty())scripts.push_back(operand);
         bool write=false,run=false;
-        for(auto script:scripts){
-            std::string_view tail=script;
-            if(script.size()>2 && script[0]=='s' && script.find_first_of(";\n}")==std::string_view::npos){
-                const char d=script[1];std::size_t p=2;
-                for(int seen=0;p<script.size() && seen<2;++p)if(script[p]==d)++seen;
-                tail=script.substr(p);
-            }
-            if(tail.find_first_of("wW")!=std::string_view::npos)write=true;
-            if(tail.find('e')!=std::string_view::npos)run=true;
-        }
+        for(auto script:scripts){const auto fx=sedScript(script);write|=fx.write;run|=fx.run;}
         if(run)return "Running a program";
         return write?"Writing to a file":inPlace?"Editing a file":"Transforming text";
     }
@@ -159,7 +211,11 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     if(name=="awk" || name=="gawk" || name=="mawk")return "Running a script";
     if(name=="sort"){
         for(std::size_t i=1;i<w.size();++i)
-            if(w[i].starts_with("--output") || (w[i].size()>1 && w[i][0]=='-' && w[i][1]!='-' && w[i].find('o')!=std::string::npos))
+            if(w[i].starts_with("--")){
+                const auto key=std::string_view(w[i]).substr(0,w[i].find('='));
+                if(key.size()>2 && std::string_view("--output").starts_with(key))return "Writing to a file";
+                if(key.size()>4 && std::string_view("--compress-program").starts_with(key))return "Running a program";
+            } else if((w[i].size()>1 && w[i][0]=='-' && w[i][1]!='-' && w[i].find('o')!=std::string::npos))
                 return "Writing to a file";
     }
     if(name=="sort" || name=="uniq" || name=="cut" || name=="tr" || name=="rev" || name=="fold" || name=="expand" ||

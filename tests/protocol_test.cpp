@@ -55,6 +55,25 @@ int main(){
         assert(commandSummary(command)=="Writing to a file");
     assert(commandSummary("sed -nf x f")=="Running a script" && commandSummary("sed -fx f")=="Running a script");
     assert(commandSummary("sed --expression='w /data/out' f")=="Running a program" && commandSummary("sed -n p f")=="Transforming text");
+    // sed scripts are read command by command: addresses and s/y operands are skipped.
+    for(auto command:{"sed -n '/error/p' log","sed '/^#/d' f","sed -n '1,5p' f","sed 's/write/exec/g' f","sed 'y/abc/xyz/' f","sed '$d' f"})
+        assert(commandSummary(command)=="Transforming text");
+    assert(commandSummary("sed '/x/w out' f")=="Writing to a file" && commandSummary("sed '1e echo hi' f")=="Running a program");
+    assert(commandSummary("sed 's/a/b/;w out' f")=="Writing to a file" && commandSummary("sed 's/a/b' f")=="Running a program");
+    // GNU-only forms: unknown short options, attached -i suffixes and abbreviated long options.
+    assert(commandSummary("sed -l 1 '1e echo PWNED' f")=="Running a program" && commandSummary("sed -i.e1 '1e echo' f")=="Running a program");
+    assert(commandSummary("sed -i.bak 's/a/b/' f")=="Editing a file");
+    assert(commandSummary("sort --out=/x f")=="Writing to a file" && commandSummary("sort --compress-prog=gzip f")=="Running a program");
+    // Variables that change which program or library runs.
+    for(auto command:{"LD_PRELOAD=/data/x.so ls","env LD_LIBRARY_PATH=/data ls","BASH_ENV=/data/x bash -c ls","DYLD_INSERT_LIBRARIES=x ls"})
+        assert(commandSummary(command)=="Running a program");
+    assert(commandSummary("LANG=C ls")=="Listing files");
+    // tar modes from any option form; mixed or extra modes stay generic.
+    assert(commandSummary("tar --extract -f a")=="Extracting an archive" && commandSummary("tar --create --file=a dir")=="Creating an archive");
+    assert(commandSummary("tar -f cx.tar -x")=="Extracting an archive" && commandSummary("tar -tvf a.tar")=="Listing an archive's contents");
+    assert(commandSummary("tar -cxf a")=="Working with an archive" && commandSummary("tar --to-command=sh -xf a")=="Running a program");
+    assert(commandSummary("tar -I zstd -xf a")=="Running a program");
+    assert(commandSummary("tar -rf a b")=="Working with an archive");
     // A tool name is trusted only from system or bundled runtime directories.
     assert(commandSummary("/bin/rm a")=="Deleting a file" && commandSummary("/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/ls")=="Listing files");
     for(auto command:{"/data/codex-ps5/workspace/ls","./ls","bin/ls","/data/codex-ps5/runtime/tools-x/ls","/data/codex-ps5/workspace/sh -c 'ls'"})
