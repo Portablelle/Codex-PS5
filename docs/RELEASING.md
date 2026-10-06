@@ -5,8 +5,11 @@ ELF service. PS5 Upload supports folder/archive transfers and payload sending;
 FTP and existing ELF senders remain usable. The native platform's optional
 `.ffpkg` output is a filesystem image, not an installable `.pkg`.
 
-1. Update `VERSION`, `sce_sys/param.json` (`contentVersion`), the download names
-   in `README.md` / `INSTALL.md`, and `CHANGELOG.md` together.
+1. Update `VERSION`, `sce_sys/param.json` (`contentVersion`), the `clientInfo`
+   version in `src/protocol.cpp` (`tools/test.sh` checks it against `VERSION`),
+   the download names in `README.md` / `INSTALL.md`, and `CHANGELOG.md` together.
+   `src` is part of the backend build identity, so make these changes before the
+   release builds.
 2. Run `bash tools/test.sh` before pushing. Build the current native app and
    backend on the remote Linux Docker host, then fetch the checksum-pinned model:
 

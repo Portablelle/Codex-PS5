@@ -7,6 +7,8 @@ import re
 import shutil
 import zipfile
 
+LINK = re.compile(r'\]\(([^)\s]+)\)|\bsrc="([^"]+)"')
+
 
 def sha256(path):
     digest = hashlib.sha256()
@@ -20,6 +22,18 @@ def archive(path, directory, paths):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as output:
         for source in sorted(paths):
             output.write(source, source.relative_to(directory).as_posix())
+
+
+def check_links(directory):
+    base = directory.resolve()
+    for document in sorted(directory.rglob('*.md')):
+        for match in LINK.finditer(document.read_text()):
+            target = (match.group(1) or match.group(2)).split('#')[0]
+            if not target or re.match(r'[a-z][a-z0-9+.-]*:', target):
+                continue
+            resolved = (document.parent / target).resolve()
+            if not resolved.exists() or not resolved.is_relative_to(base):
+                raise ValueError(f'Broken link in {document.relative_to(directory)}: {target}')
 
 
 def package(root):
@@ -80,10 +94,17 @@ def package(root):
     notices.mkdir()
     for name in ('README.md', 'INSTALL.md', 'THIRD_PARTY.md', 'LICENSE', 'VERSION', 'upstream-lock.json'):
         shutil.copy2(root / name, bundle / name)
+    # The README's relative links (images, changelog, reference) must resolve offline too.
+    for name in ('README.md', 'INSTALL.md', 'CHANGELOG.md', 'INGAME.md', 'THIRD_PARTY.md', 'LICENSE',
+                 'VERSION', 'upstream-lock.json'):
         shutil.copy2(root / name, notices / name)
+    shutil.copytree(root / 'docs', notices / 'docs')
+    (notices / 'sce_sys').mkdir()
+    shutil.copy2(root / 'sce_sys/icon0.png', notices / 'sce_sys/icon0.png')
     shutil.copytree(root / 'licenses', bundle / 'licenses')
     shutil.copytree(root / 'vendor/ps5-ai-cli/LICENSES', bundle / 'licenses/ps5-ai-cli')
     shutil.copytree(bundle / 'licenses', notices / 'licenses')
+    check_links(notices)
     shutil.copy2(service, bundle / service.name)
     # Preserve the legacy archive and staging layout for Botty exporters.
     archive(dist / f'codex-ps5-{version}.zip', dist, (p for p in bundle.rglob('*') if p.is_file()))
@@ -108,8 +129,14 @@ def package(root):
     return release
 
 
-if __name__ == '__main__':
+def main(root):
     try:
-        print(package(Path(__file__).resolve().parents[1]))
-    except (ValueError, FileNotFoundError) as error:
+        print(package(root))
+    except KeyError as error:
+        raise SystemExit(f'Missing key in release input: {error}')
+    except (ValueError, OSError) as error:
         raise SystemExit(str(error))
+
+
+if __name__ == '__main__':
+    main(Path(__file__).resolve().parents[1])
