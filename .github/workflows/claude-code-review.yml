@@ -3,33 +3,29 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+
+# A new push supersedes the review still running for the previous one.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
       issues: read
       id-token: write
+      actions: read # Read the Tests workflow results
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          # Full history: incremental reviews and "does the test fail without the fix" checks
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
@@ -38,40 +34,19 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Review commits pushed by the @claude workflow too (actor is the claude bot)
           allowed_bots: 'claude'
-          # The code-review plugin spawns a background sub-agent and then ends the
-          # session before it answers (no review is ever posted in headless mode),
-          # so we use a direct prompt instead.
+          additional_permissions: |
+            actions: read
+          # The review instructions live in .claude/commands/review-pr.md, so they can be
+          # changed without touching this workflow (the action skips PRs that modify it),
+          # and run locally with `/review-pr <number>`. The code-review plugin is not used:
+          # it ends the headless session before its background sub-agent answers.
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Review this pull request for correctness. Do the work yourself, do not
-            spawn sub-agents and do not wait for background tasks.
-
-            1. Run `gh pr view ${{ github.event.pull_request.number }} --json title,body,author` (always with
-               `--json`, plain `gh pr view` fails on CI status permissions) and
-               `gh pr diff ${{ github.event.pull_request.number }}` to see the change. The
-               diff output can be truncated: run `gh pr diff ${{ github.event.pull_request.number }} --name-only`
-               to list every changed file, and read EVERY changed file in the checkout
-               (in full when the diff was cut off). Do not skip files, including tests
-               and docs.
-            2. Look for real problems only: bugs, crashes, wrong logic, security issues,
-               missing error handling, race conditions, resource leaks, broken edge cases.
-               Skip style nitpicks and anything a linter would catch. Only report issues
-               you are confident about, and verify each one against the surrounding code
-               before reporting it.
-            3. Check the tests: is the new behavior covered, and do the tests really
-               assert what their names claim? Flag missing coverage for risky logic.
-            4. For each issue, post an inline comment on the exact line with
-               mcp__github_inline_comment__create_inline_comment (explain the problem and
-               suggest a fix).
-            5. Finish with ONE summary comment using
-               `gh pr comment ${{ github.event.pull_request.number }} --body "..."` containing:
-               - a verdict (issues found / no blocking issues found),
-               - the list of files you reviewed and any you could not review (with why),
-               - what you did NOT verify (for example: code was not built, tests were not run).
-            Write all comments in English.
-          claude_args: '--model claude-sonnet-5-5 --effort high --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-
+            Read `.claude/commands/review-pr.md` and follow it exactly, with
+            $ARGUMENTS = ${{ github.event.pull_request.number }}.
+          claude_args: >-
+            --model claude-opus-5-5 --effort high
+            --allowedTools "Bash,Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment"
+            --disallowedTools "Edit,Write,NotebookEdit,Bash(git push:*),Bash(git commit:*),Bash(gh pr merge:*),Bash(gh pr review:*)"
