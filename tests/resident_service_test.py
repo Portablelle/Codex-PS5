@@ -306,6 +306,29 @@ with open(done, 'w') as marker: marker.write(str(unread))
 os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsumed.
 ''')
 
+    (stage / 'stubborn-engine.py').write_text('''import json, os, signal, sys, time
+for line in sys.stdin:
+ value = json.loads(line)
+ if value.get('stubborn'):
+  signal.signal(signal.SIGTERM, signal.SIG_IGN)  # Only SIGKILL stops this engine.
+  print(json.dumps({'pid':os.getpid()}), flush=True)
+  while True: time.sleep(0.05)
+ print(json.dumps({'pid':os.getpid(),'echo':value}), flush=True)
+ if value.get('finish'): break
+''')
+
+    (stage / 'graceful-engine.py').write_text('''import json, os, signal, time
+gate, term, done = os.environ['SERVICE_TEST_GATE'], os.environ['SERVICE_TEST_TERM'], os.environ['SERVICE_TEST_DONE']
+def stop(*_):
+ open(term, 'w').close()
+ while not os.path.exists(gate): time.sleep(0.01)
+ open(done, 'w').close()  # Only written if the engine is allowed to finish exiting on its own.
+ os._exit(0)
+signal.signal(signal.SIGTERM, stop)
+print(json.dumps({'pid':os.getpid()}), flush=True)
+while True: time.sleep(0.05)
+''')
+
     def build(name):
         rpc, admin = free_port(), free_port()
         executable = stage / name
@@ -417,6 +440,64 @@ os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsume
             peer.close()
         if process.poll() is None:
             process.send_signal(signal.SIGCONT)
+            process.terminate(); process.wait(timeout=5)
+
+    # Tearing down an engine that ignores SIGTERM must not stall the other session.
+    stubborn_executable, stubborn_rpc, stubborn_admin = build('stubborn-service')
+    env = {**env, 'SERVICE_TEST_ENGINE': str(stage / 'stubborn-engine.py')}
+    process = subprocess.Popen([str(stubborn_executable)], env=env)
+    peers = []
+    try:
+        stubborn, other = Peer(stubborn_rpc), Peer(stubborn_rpc); peers.extend((stubborn, other))
+        stubborn.send({'stubborn': True}); stubborn_pid = stubborn.line()['pid']
+        other.send({'hello': 1}); other_pid = other.line()['pid']
+        def alive():
+            return bool(subprocess.run(['ps', '-o', 'stat=', '-p', str(stubborn_pid)], capture_output=True, text=True).stdout.strip())
+        assert alive()
+        stubborn.close()
+        # Once the service reports one connection it has started tearing the stubborn engine down.
+        wait_for(lambda: http(stubborn_admin, 'GET', '/status')[1]['connections'] == 1)
+        other.send({'during_teardown': True})
+        assert other.line()['pid'] == other_pid
+        # A blocking teardown would only have answered after SIGKILL and reaping.
+        assert alive(), 'The other session was served only after the stubborn engine was gone'
+        wait_for(lambda: not alive())  # SIGKILL after the grace period, then the zombie is collected.
+        other.send({'finish': True}); other.line()
+        wait_for(lambda: http(stubborn_admin, 'GET', '/status')[1]['connections'] == 0)
+        head, body = http(stubborn_admin, 'POST', '/stop')
+        assert b'200 OK' in head and body['idle']
+        assert process.wait(timeout=5) == 0
+        print('Backend: a SIGTERM-ignoring engine is reaped without stalling the other session')
+    finally:
+        for peer in peers:
+            peer.close()
+        if process.poll() is None:
+            process.terminate(); process.wait(timeout=5)
+
+    # /stop right after a disconnect must let the engine finish exiting after SIGTERM, not SIGKILL it.
+    graceful_executable, graceful_rpc, graceful_admin = build('graceful-service')
+    term = stage / 'engine-term'
+    for marker in (gate, term, done):
+        marker.unlink(missing_ok=True)
+    env = {**env, 'SERVICE_TEST_ENGINE': str(stage / 'graceful-engine.py'), 'SERVICE_TEST_TERM': str(term)}
+    process = subprocess.Popen([str(graceful_executable)], env=env)
+    peers = []
+    try:
+        client = Peer(graceful_rpc); peers.append(client)
+        client.line()  # The engine has installed its SIGTERM handler.
+        client.close()
+        wait_for(term.exists)  # The service sent SIGTERM and the engine is still exiting.
+        head, body = http(graceful_admin, 'POST', '/stop')
+        assert b'200 OK' in head and body['idle']
+        gate.touch()
+        assert process.wait(timeout=5) == 0
+        assert done.exists(), 'Shutdown killed an engine that was still exiting cleanly'
+        print('Backend: shutdown gives a terminating engine its SIGTERM grace period')
+    finally:
+        for peer in peers:
+            peer.close()
+        gate.touch()
+        if process.poll() is None:
             process.terminate(); process.wait(timeout=5)
 
 
