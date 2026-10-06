@@ -24,6 +24,11 @@ int main(){
     assert(language::tr("Scroll")=="Défiler" && language::tr("Send")=="Envoyer");
     assert(language::tr("Sign in")=="Connexion");
     assert(language::tr("Retry")=="Réessayer");
+    assert(language::tr("Allowed: ")=="Autorisé : " && language::tr("Declined: ")=="Refusé : ");
+    assert(language::tr("A command")=="Une commande" && language::tr("A file change")=="Une modification de fichiers");
+    // Decision lines in the conversation are translated when drawn.
+    assert(decisionLine({false,"Moving a file",{},Decision::allowed})=="Autorisé : Déplacement d'un fichier");
+    assert(decisionLine({false,"A command",{},Decision::declined})=="Refusé : Une commande");
     // Short labels must not capture longer messages that share their prefix.
     assert(language::tr("Ready")=="Pret");
     assert(language::tr("Starting a new conversation...")=="Démarrage d'une nouvelle conversation...");

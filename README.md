@@ -29,7 +29,8 @@ interface previews, not photographs or console captures. Storage values are samp
 - **Review actions on your TV.** Commands and file changes that need your
   approval appear with their details and a plain-language summary such as
   "Moving a file", "Editing files" or "Requesting network access". Decline is
-  selected by default.
+  selected by default, and each choice stays in the conversation as a line
+  such as "Allowed: Moving a file".
 - **Use English or French.** The app follows the console language, with QWERTY
   in English and AZERTY in French. On a French console, R1 switches the interface
   language while idle without changing your conversation.

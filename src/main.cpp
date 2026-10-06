@@ -67,8 +67,9 @@ constexpr unsigned userWidth=1000,codexWidth=1400;
 std::vector<ChatRow> chatRows(Canvas& c,const assistant::State& state){
     std::vector<ChatRow> rows;unsigned message=0;
     std::size_t latest=state.messages.size();
-    for(std::size_t i=0;i<state.messages.size();++i)if(!state.messages[i].user)latest=i;
-    const bool trailingStatus=state.busy && (state.messages.empty() || state.messages.back().user);
+    const auto reply=[](const assistant::Message& m){return !m.user && m.decision==assistant::Decision::none;};
+    for(std::size_t i=0;i<state.messages.size();++i)if(reply(state.messages[i]))latest=i;
+    const bool trailingStatus=state.busy && (state.messages.empty() || !reply(state.messages.back()));
     const auto add=[&](bool user,std::string_view text,bool isLatest,bool status){
         ++message;
         if(!rows.empty())rows.push_back({ChatRow::gap,false,false,false,false,false,message,48,{},{}});
@@ -92,8 +93,17 @@ std::vector<ChatRow> chatRows(Canvas& c,const assistant::State& state){
         }
         if(user)rows.push_back({ChatRow::pad,true,false,false,false,false,message,22,{},{}});
     };
+    // An approval decision is a short muted line without the CODEX label.
+    const auto decision=[&](const assistant::Message& m){
+        ++message;
+        if(!rows.empty())rows.push_back({ChatRow::gap,false,false,false,false,false,message,24,{},{}});
+        const auto line=assistant::decisionLine(m);
+        for(const auto& piece:wrap(c,line,codexWidth,28))
+            rows.push_back({ChatRow::body,false,false,true,false,false,message,42,line.substr(piece.start,piece.length),{}});
+    };
     for(std::size_t i=0;i<state.messages.size();++i)
-        add(state.messages[i].user,state.messages[i].text,i==latest && !trailingStatus,false);
+        if(state.messages[i].decision!=assistant::Decision::none)decision(state.messages[i]);
+        else add(state.messages[i].user,state.messages[i].text,i==latest && !trailingStatus,false);
     if(state.messages.empty() && !state.response.empty() && !state.busy)add(false,state.response,true,false);
     if(trailingStatus)add(false,assistant::language::tr(state.status),true,true);
     else if(state.busy){

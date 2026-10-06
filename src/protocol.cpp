@@ -9,6 +9,15 @@ std::string field(const Json& j,const char* key) {
     if(!j.is_object())return {};
     auto it=j.find(key);return it!=j.end() && it->is_string()?it->get<std::string>():std::string{};
 }
+std::string decisionLine(const Message& m){
+    std::string line=language::tr(m.decision==Decision::allowed?"Allowed: ":"Declined: ");
+    for(std::size_t start=0;start<m.text.size();){
+        const auto end=std::min(m.text.find('\n',start),m.text.size());
+        if(start)line+=" · ";
+        line+=language::tr(std::string_view(m.text).substr(start,end-start));start=end+1;
+    }
+    return line;
+}
 static const Json& object(const Json& j,const char* key) {
     static const Json empty=Json::object();
     if(!j.is_object())return empty;auto it=j.find(key);
@@ -55,12 +64,12 @@ bool Protocol::retryThread(){
     return true;
 }
 void Protocol::begin(){
-    pending_.clear();items_.clear();changes_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
+    pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){
-    pending_.clear();items_.clear();changes_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
+    pending_.clear();items_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
     state.approvals.clear();state.thread.clear();state.turn.clear();state.authenticated=false;interruptPending_=false;
     state.status="Engine disconnected. The request will not be resent.";++state.revision;
 }
@@ -107,7 +116,14 @@ void Protocol::flushInterrupt(){if(interruptPending_ && state.busy && !state.tur
 void Protocol::decide(bool accept){
     if(state.approvals.empty())return;
     auto a=state.approvals.front();state.approvals.pop_front();
-    emit({{"id",a.id},{"result",{{"decision",accept && a.reviewable?"accept":"decline"}}}});
+    const bool accepted=accept && a.reviewable;
+    emit({{"id",a.id},{"result",{{"decision",accepted?"accept":"decline"}}}});
+    // Keep a trace of the choice in the conversation.
+    auto what=a.summary;
+    if(what.empty())what=a.method=="item/fileChange/requestApproval"?"A file change":"A command";
+    state.messages.push_back({false,std::move(what),{},accepted?Decision::allowed:Decision::declined});
+    while(state.messages.size()>64)state.messages.pop_front();
+    ++state.chatRevision;
     state.status=state.approvals.empty()?"Codex is resuming...":"Next action needs approval";
     ++state.revision;
 }
@@ -131,16 +147,17 @@ bool Protocol::ingest(std::string_view line){
                 ++state.revision;return true;
             }
             if(state.approvals.size()>=16)return false;
-            const auto cached=items_.find(field(p,"itemId"));
+            const auto itemId=field(p,"itemId");
+            const auto cached=std::find_if(items_.begin(),items_.end(),[&](const Item& i){return !itemId.empty() && i.id==itemId;});
             std::string description=field(p,"command");
-            if(description.empty() && cached!=items_.end())description=cached->second;
+            if(description.empty() && cached!=items_.end())description=cached->details;
             const bool detailAvailable=!description.empty() && field(p,"kind")!="stdin";
             // One plain-language line per aspect of the request, translated when drawn.
             std::string summary;
             const auto line=[&](std::string_view text){if(!text.empty()){if(!summary.empty())summary+='\n';summary+=text;}};
             if(field(p,"kind")=="stdin")line("Sending input to a running command");
             else if(method=="item/commandExecution/requestApproval")line(commandSummary(description));
-            else if(const auto change=changes_.find(field(p,"itemId"));change!=changes_.end())line(change->second);
+            else if(cached!=items_.end())line(cached->change);
             if(hasContext("grantRoot"))line("Requesting write access to a folder");
             if(hasContext("networkApprovalContext"))line("Requesting network access");
             if(hasContext("additionalPermissions"))line("Requesting additional permissions");
@@ -203,13 +220,14 @@ bool Protocol::ingest(std::string_view line){
                 if(details.size()>8192)break;
             }
         }
-        if(type=="fileChange" && !itemId.empty()){
-            if(changes_.size()>=64)changes_.erase(changes_.begin());
-            changes_[itemId]=std::string(fileChangeSummary(item.contains("changes")?item["changes"]:Json()));
-        }
-        if(!itemId.empty() && !details.empty()){
-            if(items_.size()>=64)items_.erase(items_.begin());
-            items_[itemId]=details.substr(0,8193);
+        // A finished item can no longer ask for approval: forget it, so a long turn
+        // never pushes out the details of an item still waiting for one.
+        auto known=std::find_if(items_.begin(),items_.end(),[&](const Item& i){return i.id==itemId;});
+        if(method=="item/completed"){if(known!=items_.end())items_.erase(known);}
+        else if(!itemId.empty() && (!details.empty() || type=="fileChange")){
+            if(known==items_.end()){if(items_.size()>=64)items_.pop_front();items_.push_back({itemId,{},{}});known=std::prev(items_.end());}
+            known->details=details.substr(0,8193);
+            if(type=="fileChange")known->change=std::string(fileChangeSummary(item.contains("changes")?item["changes"]:Json()));
         }
     } else if(method=="item/agentMessage/delta") {
         const auto delta=field(p,"delta");
@@ -221,7 +239,7 @@ bool Protocol::ingest(std::string_view line){
         if(state.busy && state.approvals.empty())state.status="Codex is thinking...";
     } else if(method=="turn/started") {state.turn=field(object(p,"turn"),"id");state.busy=true;flushInterrupt();}
     else if(method=="turn/completed") {
-        state.busy=false;interruptPending_=false;state.turn.clear();state.approvals.clear();items_.clear();changes_.clear();
+        state.busy=false;interruptPending_=false;state.turn.clear();state.approvals.clear();items_.clear();
         const auto& turn=object(p,"turn");const auto status=field(turn,"status");
         state.turnStatus=status;
         state.status=status=="completed"?"Completed":status=="interrupted"?"Interrupted":"Failed: "+field(object(turn,"error"),"message");
