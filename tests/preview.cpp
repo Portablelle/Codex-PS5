@@ -20,7 +20,7 @@ bool Client::start(){
     if(std::getenv("PREVIEW_THINKING")){protocol_.state.messages.pop_back();protocol_.state.busy=true;protocol_.state.status="Codex is thinking...";}
     if(std::getenv("PREVIEW_SIGNIN")){protocol_.state.code="K7QF-29XM";protocol_.state.url="https://auth.openai.com/codex/device";protocol_.state.status="Sign in on your phone using the displayed code.";}
     if(const char* status=std::getenv("PREVIEW_STATUS"))protocol_.state.status=status;
-    if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt"});
+    if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt",true,"Moving a file"});
     return true;
 }
 void Client::stop(){}State Client::snapshot(){return protocol_.state;}

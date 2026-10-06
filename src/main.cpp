@@ -260,7 +260,7 @@ void approvalSheet(Canvas& c,const assistant::Approval& approval){
     const auto rows=wrap(c,approval.description,inner-64,24);
     const unsigned shown=std::min<unsigned>(static_cast<unsigned>(rows.size()),visible);
     approvalScroll=std::min(approvalScroll,rows.size()>visible?static_cast<unsigned>(rows.size()-visible):0U);
-    const unsigned block=56+shown*36,height=404+block;
+    const unsigned block=56+shown*36,height=404+block+(approval.summary.empty()?0:52);
     const unsigned x=(1920-width)/2,y=(1080-height)/2;
     c.shade(184);c.rounded(x,y,width,height,32,edge);c.rounded(x+1,y+1,width-2,height-2,31,surface);
     unsigned cy=y+56;const unsigned cx=x+64;
@@ -268,6 +268,7 @@ void approvalSheet(Canvas& c,const assistant::Approval& approval){
     const auto title=approval.method=="item/commandExecution/requestApproval"?"Codex wants to run a command":
         approval.method=="item/fileChange/requestApproval"?"Codex wants to change files":"Codex needs your approval";
     c.label(cx,cy,assistant::language::tr(title),44,ink);cy+=68;
+    if(!approval.summary.empty()){c.label(cx,cy,assistant::language::tr(approval.summary),32,soft);cy+=52;}
     c.label(cx,cy,assistant::language::tr(approval.reviewable?"Review it carefully. Nothing runs unless you choose Allow.":"Details are incomplete: this action can only be declined."),24,approval.reviewable?muted:danger);cy+=72;
     c.rounded(cx,cy,inner,block,20,well);c.rounded(cx+1,cy+1,inner-2,block-2,19,bg);
     for(unsigned i=0;i<shown;++i){

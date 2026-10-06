@@ -1,5 +1,6 @@
 #include "../src/protocol.hpp"
 #include "../src/read_only_command.hpp"
+#include "../src/command_summary.hpp"
 #include <cassert>
 #include "../src/language.hpp"
 #include <iostream>
@@ -9,6 +10,23 @@
 using namespace assistant;
 int main(){
     const std::string runtimeShell="/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/sh";
+    // Approval summaries describe the command, including the one wrapped by the runtime shell.
+    assert(commandSummary("mv /data/notes.txt /data/archives/notes.txt")=="Moving a file");
+    assert(commandSummary(runtimeShell+" -lc 'mv /data/notes.txt /data/archives/'")=="Moving a file");
+    assert(commandSummary("/bin/bash -c \"mv a b c\"")=="Moving files");
+    assert(commandSummary("rm /data/a.txt")=="Deleting a file" && commandSummary("rm a b")=="Deleting files");
+    assert(commandSummary("rm -rf /data/old")=="Deleting folders and their contents");
+    assert(commandSummary("cp -R a b")=="Copying a folder" && commandSummary("mkdir -p /data/x")=="Creating a folder");
+    assert(commandSummary("sed -i s/a/b/ f")=="Editing a file" && commandSummary("sed s/a/b/ f")=="Transforming text");
+    // A harmless-looking first command must not hide what follows it.
+    for(auto command:{"ls; rm -rf /data","ls && rm a","cat a | sh","ls $(rm a)","ls `rm a`","ls &"})
+        assert(commandSummary(command)=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc 'ls; rm -rf /data'")=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc \"ls $(rm a)\"")=="Running several commands");
+    assert(commandSummary("echo hi > /data/a.txt")=="Writing to a file");
+    assert(commandSummary("ls ';' '$(x)'")=="Listing files");
+    for(auto command:{"","./script.sh","python3 x.py","find /data -delete","find . -exec rm {} +","sysctl kern.x=1","nice rm a"})
+        assert(commandSummary(command).empty());
     for(auto command:{"df", "'df -h'", "\"df -h /data\"", "\"cat '/data/my notes.txt'\""})
         assert(readOnlyCommand(runtimeShell+" -lc "+command));
     assert(readOnlyCommand(runtimeShell+" -c 'df -h'"));
@@ -79,12 +97,13 @@ int main(){
     assert(p.state.approvals.size()==1);p.decide(false);
     assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"commandExecution","id":"parent-command","command":"parent-script"}}})"));
     assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"approval-1","params":{"itemId":"parent-command","command":"mv a b"}})"));
-    assert(p.state.approvals.front().description=="mv a b");
+    assert(p.state.approvals.front().description=="mv a b" && p.state.approvals.front().summary=="Moving a file");
     assert(p.state.approvals.size()==1);
     auto before=p.outgoing.size();p.decide(false);assert(p.outgoing.size()==before+1);
     auto reply=Json::parse(p.outgoing.back());assert(reply["id"]=="approval-1");assert(reply["result"]["decision"]=="decline");
     assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"fileChange","id":"patch1","changes":[{"path":"/data/note.txt","diff":"-old\n+new"}]}}})"));
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":77,"params":{"itemId":"patch1","reason":"edit"}})"));
+    assert(p.state.approvals.front().summary.empty());
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["id"]==77 && reply["result"]["decision"]=="accept");
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":78,"params":{"itemId":"unknown"}})"));
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["result"]["decision"]=="decline");

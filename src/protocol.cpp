@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "protocol.hpp"
 #include "read_only_command.hpp"
+#include "command_summary.hpp"
 #include "language.hpp"
 #include <algorithm>
 namespace assistant {
@@ -126,6 +127,7 @@ bool Protocol::ingest(std::string_view line){
             std::string description=field(p,"command");
             if(description.empty() && cached!=items_.end())description=cached->second;
             const bool detailAvailable=!description.empty() && field(p,"kind")!="stdin";
+            const std::string summary(method=="item/commandExecution/requestApproval"?commandSummary(description):std::string_view{});
             const auto cwd=field(p,"cwd"),reason=field(p,"reason"),root=field(p,"grantRoot");
             if(!cwd.empty())description+=language::tr("\nDirectory: ")+cwd;
             if(!root.empty())description+=language::tr("\nRequested root: ")+root;
@@ -133,7 +135,7 @@ bool Protocol::ingest(std::string_view line){
             if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+=language::tr("\nPermissions: ")+p["additionalPermissions"].dump();
             const bool complete=detailAvailable && description.size()<=8192;
             if(!complete)description=language::tr("Details incomplete or too long: decline only.\n")+description;
-            state.approvals.push_back({*id,method,description.substr(0,8192),complete});
+            state.approvals.push_back({*id,method,description.substr(0,8192),complete,summary});
             state.status="Action awaiting approval";
         } else emit({{"id",*id},{"error",{{"code",-32601},{"message",language::tr("Interaction unsupported by the PS5 prototype")}}}});
     } else if(method.empty() && id!=j.end() && id->is_number_integer()) {

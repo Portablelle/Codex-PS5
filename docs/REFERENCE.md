@@ -116,7 +116,14 @@ the connection before releasing application resources and exiting. An action
 already started is not rolled back; this prototype cannot resume the conversation.
 
 Approval requests for commands and file changes appear in a window with
-scrollable details. The client automatically accepts recognized simple
+scrollable details. Above a command, a short summary describes common
+operations in plain language (for example "Moving a file" for `mv`, "Deleting
+folders and their contents" for `rm -r`), including commands wrapped in
+`sh -c`/`-lc`. Commands joined with `;`, `&&`, `|`, `&` or command substitution
+are summarized as "Running several commands", output redirection as "Writing
+to a file", and unrecognized programs get no summary. The summary is only a
+reading aid: it never affects which commands are accepted, so always check the
+full command below it. The client automatically accepts recognized simple
 inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,
 `pwd`, `uname`, `whoami`, `readlink`, `ps5-tools` and named property reads with
 `sysctl`. This acceptance applies only to the requested command, never to the

@@ -9,7 +9,7 @@
 namespace assistant {
 using Json=nlohmann::json;
 std::string field(const Json& value,const char* key);
-struct Approval {Json id;std::string method,description;bool reviewable=true;};
+struct Approval {Json id;std::string method,description;bool reviewable=true;std::string summary;};
 struct Message {bool user=false;std::string text,itemId;};
 struct State {
     bool connected=false,ready=false,busy=false,authenticated=false;
