@@ -112,8 +112,14 @@ void header(Canvas& c,const assistant::State& state){
     constexpr std::string_view model="GPT-6.1 SOL · LOW";
     const unsigned modelX=right-trackedWidth(c,model,20,2);tracked(c,modelX,68,model,20,muted,2);
     c.rectangle(modelX-33,66,1,28,edge);
-    const auto status=assistant::language::tr(state.status);
-    const unsigned statusX=modelX-65-std::min(c.text_width(status,24),1100U);
+    // Server text has no length limit: keep it between the title and the model label.
+    auto status=assistant::language::tr(state.status);
+    const unsigned room=modelX-65-(200+c.text_width("Codex",32)+trackedWidth(c,"PS5",20,3)+48);
+    if(c.text_width(status,24)>room){
+        while(!status.empty() && c.text_width(status,24)+c.text_width("…",24)>room)eraseCodepoint(status);
+        status+="…";
+    }
+    const unsigned statusX=modelX-65-c.text_width(status,24);
     c.circle(statusX-17,81,5,failing(state.status)?danger:accent);c.label(statusX,64,status,24,ink);
 }
 void hint(Canvas& c,unsigned& x,unsigned y,std::string_view glyph,std::string_view text,Color color){
@@ -171,7 +177,16 @@ void conversation(Canvas& c,const assistant::State& state,unsigned top,unsigned 
     }
 }
 void signIn(Canvas& c,const assistant::State& state,unsigned top,unsigned bottom){
-    const unsigned y=top+(bottom-top-440)/2;
+    const unsigned room=bottom>top?bottom-top:0;
+    if(room<440){
+        // Compact layout above the open keyboard: keep the URL and code, drop the headline.
+        const unsigned y=top+(room>250?(room-250)/2:0);
+        tracked(c,left,y,assistant::language::tr("SIGN IN TO CHATGPT"),20,accent,2);
+        c.label(left,y+44,assistant::language::tr("1 · Open"),24,muted);c.label(left+240,y+40,state.url,32,codeInk);
+        c.label(left,y+120,assistant::language::tr("2 · Enter the code"),24,muted);tracked(c,left+240,y+104,state.code,60,ink,5);
+        return;
+    }
+    const unsigned y=top+(room-440)/2;
     tracked(c,left,y,assistant::language::tr("SIGN IN TO CHATGPT"),20,accent,2);
     c.label(left,y+36,assistant::language::tr("Finish signing in on your phone."),60,ink);
     c.label(left,y+164,assistant::language::tr("1 · Open"),24,muted);
@@ -230,13 +245,14 @@ void hints(Canvas& c){
     x-=36+hintWidth(c,"",login);hint(c,x,y,"",login,muted);
 }
 // Centered dialog over a dimmed screen. Returns the content origin.
-void sheetHints(Canvas& c,unsigned x,unsigned y,bool scrollable){
+void sheetHints(Canvas& c,unsigned x,unsigned y,bool scrollable,bool choosable=true){
     const auto choose=assistant::language::tr("Choose"),confirm=assistant::language::tr("Confirm"),read=assistant::language::tr("Scroll");
-    unsigned width=hintWidth(c,"←→",choose)+36+hintWidth(c,"×",confirm);
+    unsigned width=(choosable?hintWidth(c,"←→",choose)+36:0)+hintWidth(c,"×",confirm);
     if(scrollable)width+=36+hintWidth(c,"↑↓",read);
     x-=width;
     if(scrollable)hint(c,x,y,"↑↓",read,muted);
-    hint(c,x,y,"←→",choose,muted);hint(c,x,y,"×",confirm,muted);
+    if(choosable)hint(c,x,y,"←→",choose,muted);
+    hint(c,x,y,"×",confirm,muted);
 }
 void approvalSheet(Canvas& c,const assistant::Approval& approval){
     constexpr unsigned width=1120,inner=width-128,visible=9;
@@ -261,7 +277,7 @@ void approvalSheet(Canvas& c,const assistant::Approval& approval){
     cy+=block+44;
     button(c,cx,cy,assistant::language::tr("Decline"),!approve);
     button(c,cx+256,cy,assistant::language::tr("Allow"),approve,approval.reviewable?soft:dim);
-    sheetHints(c,x+width-64,cy+19,rows.size()>visible);
+    sheetHints(c,x+width-64,cy+19,rows.size()>visible,approval.reviewable);
 }
 void quitSheet(Canvas& c){
     constexpr unsigned width=1080,height=388;
@@ -280,11 +296,17 @@ void render(Canvas& c,const assistant::State& state,const assistant::VoiceState&
     const unsigned composerBottom=keyboard?660:986;
     composerBox(c,state,mic,composerBottom);
     const unsigned composerTop=composerBottom-78-std::clamp<unsigned>(static_cast<unsigned>(wrap(c,composer,1460,28).size()),1,3)*42;
-    const auto notice=!composerNotice.empty()?composerNotice:mic.status!="△: dictate"?mic.status:std::string{};
+    // Failures are shown in full here; the header only has room for a truncated status.
+    const bool failure=failing(state.status) && composerNotice.empty() && mic.status=="△: dictate";
+    const auto notice=!composerNotice.empty()?composerNotice:mic.status!="△: dictate"?mic.status:failure?state.status:std::string{};
     unsigned threadBottom=composerTop-32;
     if(!notice.empty()){
         const auto text=assistant::language::tr(notice);
-        c.circle(left+13,composerTop-30,5,accent);c.label(left+30,composerTop-47,text,24,ink);threadBottom=composerTop-72;
+        auto rows=wrap(c,text,span-30,24);if(rows.size()>3)rows.resize(3);
+        const unsigned noticeTop=composerTop-47-static_cast<unsigned>(rows.size()-1)*34;
+        c.circle(left+13,noticeTop+17,5,failure?danger:accent);
+        for(std::size_t i=0;i<rows.size();++i)c.label(left+30,noticeTop+static_cast<unsigned>(i)*34,std::string_view(text).substr(rows[i].start,rows[i].length),24,ink);
+        threadBottom=noticeTop-25;
     }
     if(!state.code.empty())signIn(c,state,168,threadBottom);else conversation(c,state,168,threadBottom);
     if(keyboard)keyboardPanel(c,composerBottom+20);else hints(c);
