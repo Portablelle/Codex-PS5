@@ -38,4 +38,5 @@ jobs:
       - name: PS5 compile check, backend and in-game service (prospero-clang -Werror)
         run: bash tools/ps5-compile-check.sh
       - name: PS5 compile check, native app (prospero-clang -Werror)
+        if: success() || failure()  # report it even when the backend check failed
         run: bash tools/ps5-native-check.sh

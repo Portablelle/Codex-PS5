@@ -25,10 +25,11 @@ docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /wo
     -e PS5_PAYLOAD_SDK="/work/$deps/ps5-payload-sdk" -e PS5_CLANG=clang-18 -e USE_CCACHE=0 \
     -e DEPS="$deps" opennow-ps5-builder:latest bash -c '
 status=0
-for source in src/*.c src/*.cpp; do
+# Same source set as build.sh: every C/C++ file under src/, recursively.
+while IFS= read -r -d "" source; do
     if [[ $source == *.c ]]; then flags=(-std=c11); else flags=(-std=c++20 -fno-exceptions -fno-rtti); fi
     sh vendor/native-platform/tooling/prospero-clang18 "${flags[@]}" -O2 -Wall -Wextra -Werror \
         -ffunction-sections -fdata-sections -I"$DEPS/whisper-include" \
         -c "$source" -o /dev/null || { echo "FAILED: $source" >&2; status=1; }
-done
+done < <(find src -type f \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \) -print0 | sort -z)
 exit $status'
