@@ -106,12 +106,23 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     if(name=="sed"){
         // Scripts can write files (w, W) or run commands (e): look at the flags of a
         // single s command, otherwise at the whole script.
-        std::vector<std::string_view> scripts;bool explicitScript=false;
+        // Options follow getopt: grouped (-ne) and attached (-e'w x', -fx) forms count.
+        std::vector<std::string_view> scripts;bool explicitScript=false;std::string_view operand;
         for(std::size_t i=1;i<w.size();++i){
-            if(w[i]=="-f" || w[i].starts_with("--file"))return "Running a script";
-            if(w[i]=="-e" && i+1<w.size()){scripts.push_back(w[++i]);explicitScript=true;}
+            const std::string_view o=w[i];
+            if(o=="--"){if(i+1<w.size() && operand.empty())operand=w[i+1];break;}
+            if(o.starts_with("--")){if(o.starts_with("--in-place"))continue;return "Running a program";}
+            if(o.size()<2 || o[0]!='-'){if(operand.empty())operand=o;continue;}
+            for(std::size_t c=1;c<o.size();++c){
+                if(o[c]=='f')return "Running a script";
+                if(o[c]=='e'){
+                    explicitScript=true;
+                    if(c+1<o.size())scripts.push_back(o.substr(c+1));else if(i+1<w.size())scripts.push_back(w[++i]);
+                    break;
+                }
+            }
         }
-        if(!explicitScript)for(std::size_t i=1;i<w.size();++i)if(!w[i].starts_with("-")){scripts.push_back(w[i]);break;}
+        if(!explicitScript && !operand.empty())scripts.push_back(operand);
         bool write=false,run=false;
         for(auto script:scripts){
             std::string_view tail=script;
@@ -146,7 +157,11 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     if(name=="wc")return "Counting lines and words";
     if(name=="cmp" || name=="comm" || name=="diff")return "Comparing files";
     if(name=="awk" || name=="gawk" || name=="mawk")return "Running a script";
-    if(name=="sort" && (has("-o") || has("--output")))return "Writing to a file";
+    if(name=="sort"){
+        for(std::size_t i=1;i<w.size();++i)
+            if(w[i].starts_with("--output") || (w[i].size()>1 && w[i][0]=='-' && w[i][1]!='-' && w[i].find('o')!=std::string::npos))
+                return "Writing to a file";
+    }
     if(name=="sort" || name=="uniq" || name=="cut" || name=="tr" || name=="rev" || name=="fold" || name=="expand" ||
        name=="unexpand" || name=="paste" || name=="join" || name=="tsort")return "Transforming text";
     if(name=="du" || name=="df")return "Checking storage space";
