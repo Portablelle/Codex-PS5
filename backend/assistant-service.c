@@ -158,19 +158,22 @@ int ps5_assistant_run(void){
             }
             unsigned index=2+CONTROL_LIMIT+i*2;
             fds[index]=(struct pollfd){s->client,client,0};
-            fds[index+1]=(struct pollfd){s->eof?-1:s->io,engine,0};
+            /* Without interest, a hung-up engine would report POLLHUP and spin the loop. */
+            fds[index+1]=(struct pollfd){s->eof||!engine?-1:s->io,engine,0};
         }
         if(poll(fds,sizeof(fds)/sizeof(*fds),100)<0){if(errno==EINTR)continue;break;}
         uint64_t now=now_ms();
         for(unsigned i=0;i<SESSION_LIMIT;++i){
             struct session *s=&sessions[i];if(s->client<0)continue;
             unsigned index=2+CONTROL_LIMIT+i*2;short c=fds[index].revents,e=fds[index+1].revents;
-            if(send_queue(s->client,s->output,c) || (!s->eof && send_queue(s->io,s->input,e))){destroy(s);continue;}
+            if(send_queue(s->client,s->output,c)){destroy(s);continue;}
+            /* A dead engine drops its unsent input but keeps the output it already produced. */
+            if(!s->eof && send_queue(s->io,s->input,e))s->input->begin=s->input->end=0;
             if(!s->eof){
                 int incoming=read_queue(s->client,s->input,c);
                 int reply=s->output->end<sizeof(s->output->bytes)?read_queue(s->io,s->output,e):0;
-                if(incoming || reply<0){destroy(s);continue;}
-                if(reply>0)s->eof=1;
+                if(incoming){destroy(s);continue;}
+                if(reply)s->eof=1;
             }
             if(s->eof && s->output->begin==s->output->end)destroy(s);
         }

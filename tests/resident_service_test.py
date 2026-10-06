@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import signal
 import socket
 import subprocess
 import threading
@@ -287,11 +288,36 @@ pid_t ps5_spawn_sdk(const char *path,char **argv,char **envp,const char *cwd,
 extern int ps5_assistant_run(void);
 int main(void){signal(SIGPIPE,SIG_IGN);return ps5_assistant_run();}
 ''')
-    rpc, admin = free_port(), free_port()
-    executable = stage / 'service'
-    subprocess.run([os.environ.get('CC', 'clang'), '-std=c11', '-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror',
-        f'-DASSISTANT_RPC_PORT={rpc}', f'-DASSISTANT_ADMIN_PORT={admin}',
-        str(stage / 'app/service.c'), str(stage / 'stub.c'), '-o', str(executable)], check=True)
+    (stage / 'dying-engine.py').write_text('''import os, time
+gate, done = os.environ['SERVICE_TEST_GATE'], os.environ['SERVICE_TEST_DONE']
+while not os.path.exists(gate): time.sleep(0.01)
+os.write(1, b'engine final output\\n')
+open(done, 'w').close()
+os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsumed.
+''')
+
+    def build(name):
+        rpc, admin = free_port(), free_port()
+        executable = stage / name
+        subprocess.run([os.environ.get('CC', 'clang'), '-std=c11', '-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror',
+            f'-DASSISTANT_RPC_PORT={rpc}', f'-DASSISTANT_ADMIN_PORT={admin}',
+            str(stage / 'app/service.c'), str(stage / 'stub.c'), '-o', str(executable)], check=True)
+        return executable, rpc, admin
+
+    def http(admin, method, path):
+        with connect(admin) as sock:
+            sock.sendall(f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n\r\n'.encode())
+            reply = b''
+            while True:
+                part = sock.recv(1024)
+                if not part:
+                    break
+                reply += part
+            head, body = reply.split(b'\r\n\r\n', 1)
+            return head, json.loads(body)
+
+    dying_executable, dying_rpc, dying_admin = build('dying-service')
+    executable, rpc, admin = build('service')
     env = {**os.environ, 'SERVICE_TEST_PYTHON': shutil.which('python3'), 'SERVICE_TEST_ENGINE': str(stage / 'fake-engine.py')}
     process = subprocess.Popen([str(executable)], env=env)
     peers = []
@@ -301,36 +327,24 @@ int main(void){signal(SIGPIPE,SIG_IGN);return ps5_assistant_run();}
         second.send({'owner': 'resident'}); second_pid = second.line()['pid']
         assert first_pid != second_pid
 
-        def http(method, path):
-            with connect(admin) as sock:
-                sock.sendall(f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n\r\n'.encode())
-                reply = b''
-                while True:
-                    part = sock.recv(1024)
-                    if not part:
-                        break
-                    reply += part
-                head, body = reply.split(b'\r\n\r\n', 1)
-                return head, json.loads(body)
-
-        head, body = http('GET', '/status')
+        head, body = http(admin, 'GET', '/status')
         assert b'200 OK' in head and body['connections'] == 2 and not body['idle']
-        head, _ = http('POST', '/stop'); assert b'409 Conflict' in head
+        head, _ = http(admin, 'POST', '/stop'); assert b'409 Conflict' in head
         excess = connect(rpc); peers.append(excess)
         assert excess.recv(1) == b'', 'Extra clients must not queue a third engine'
         slow = connect(admin); peers.append(slow); slow.sendall(b'GET /status')
         second.send({'while_control_is_incomplete': True})
         assert second.line()['pid'] == second_pid
         first.close()
-        wait_for(lambda: http('GET', '/status')[1]['connections'] == 1)
+        wait_for(lambda: http(admin, 'GET', '/status')[1]['connections'] == 1)
         second.send({'still_alive_after_native_closes': True})
         assert second.line()['pid'] == second_pid
         # Exercise chunking/backpressure and final output after engine EOF.
         second.send({'finish': True, 'large': 'é' * 100000})
         result = second.line()
         assert result['pid'] == second_pid and result['echo']['large'] == 'é' * 100000
-        wait_for(lambda: http('GET', '/status')[1]['connections'] == 0)
-        head, body = http('POST', '/stop')
+        wait_for(lambda: http(admin, 'GET', '/status')[1]['connections'] == 0)
+        head, body = http(admin, 'POST', '/stop')
         assert b'200 OK' in head and body['idle']
         assert process.wait(timeout=5) == 0
         print('Backend: two independent engines, nonblocking controls, backpressure, EOF drain and safe stop passed')
@@ -338,6 +352,55 @@ int main(void){signal(SIGPIPE,SIG_IGN);return ps5_assistant_run();}
         for peer in peers:
             peer.close()
         if process.poll() is None:
+            process.terminate(); process.wait(timeout=5)
+
+    # The engine exits while the service still holds input it could not deliver.
+    gate, done = stage / 'engine-gate', stage / 'engine-done'
+    for marker in (gate, done):
+        marker.unlink(missing_ok=True)
+    env = {**env, 'SERVICE_TEST_ENGINE': str(stage / 'dying-engine.py'),
+           'SERVICE_TEST_GATE': str(gate), 'SERVICE_TEST_DONE': str(done)}
+    process = subprocess.Popen([str(dying_executable)], env=env)
+    peers = []
+    try:
+        client = Peer(dying_rpc); peers.append(client)
+        wait_for(lambda: http(dying_admin, 'GET', '/status')[1]['connections'] == 1)
+
+        def flood():  # More than the queue and the socketpair hold, since the engine never reads.
+            try:
+                client.sock.sendall(b'x' * 4000000)
+            except OSError:
+                pass
+        threading.Thread(target=flood, daemon=True).start()
+        time.sleep(0.5)
+        # Stop the service so the engine's output and exit are first seen together.
+        process.send_signal(signal.SIGSTOP)
+        try:
+            gate.touch()
+            wait_for(done.exists)
+            time.sleep(0.2)
+        finally:
+            process.send_signal(signal.SIGCONT)
+        received = b''
+        try:
+            while True:
+                part = client.sock.recv(65536)
+                if not part:
+                    break
+                received += part
+        except ConnectionResetError:
+            pass  # The service closed with client bytes it never read.
+        assert received == b'engine final output\n', received
+        wait_for(lambda: http(dying_admin, 'GET', '/status')[1]['connections'] == 0)
+        head, body = http(dying_admin, 'POST', '/stop')
+        assert b'200 OK' in head and body['idle']
+        assert process.wait(timeout=5) == 0
+        print('Backend: engine exit with unconsumed input still delivers its final output')
+    finally:
+        for peer in peers:
+            peer.close()
+        if process.poll() is None:
+            process.send_signal(signal.SIGCONT)
             process.terminate(); process.wait(timeout=5)
 
 
