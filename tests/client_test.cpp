@@ -14,12 +14,16 @@
 using namespace assistant;
 namespace {
 int engine=-1;std::atomic<int> app{-1}; // -1: the engine is unavailable
+std::atomic<bool> quitting{false},delayedQuit{false};
 std::mutex storage;std::string stored="saved-thread";std::vector<std::string> writes;std::atomic<int> failures{0};
 }
 namespace botty::platform {
 int systemLanguage() noexcept {return 1;}
 std::uint64_t now() noexcept {return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());}
-void sleep(unsigned us) noexcept {std::this_thread::sleep_for(std::chrono::microseconds(us));}
+void sleep(unsigned us) noexcept {
+    if(quitting && us>=1000000)delayedQuit=true; // a reconnect delay while the app quits
+    std::this_thread::sleep_for(std::chrono::microseconds(us));
+}
 void log(const char*) noexcept {}
 int connectLocal() noexcept {const int fd=app;return fd<0?-1:dup(fd);}
 int send(int fd,const void* bytes,std::size_t length) noexcept {return static_cast<int>(::send(fd,bytes,length,0));}
@@ -111,6 +115,7 @@ int main(){
     reply(request,{{"thread",{{"id","replacement"}}}});
     wait([&]{return client.snapshot().thread=="replacement";});
     {std::lock_guard lock(storage);assert(stored=="moved-again");}
-    client.stop();close(engine);close(pair[1]);
+    // Quitting skips the reconnect delay.
+    quitting=true;client.stop();assert(!delayedQuit);close(engine);close(pair[1]);
     std::cout<<"client tests passed\n";
 }

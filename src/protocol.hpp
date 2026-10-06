@@ -53,12 +53,15 @@ private:
     bool interruptPending_=false; // interrupt asked before the turn id was known
     std::string resume_; // saved thread to resume instead of starting one
     bool resumeSkipped_=false;
+    std::string history_; // resumed thread whose older turns are still being fetched
+    std::size_t historyTurns_=0;
     void flushInterrupt();
     void agentMessage(std::string id,std::string text,bool append);
     void request(const char* method,Json params);
     void emit(Json message);
     void startThread();
     bool threadPending() const;
-    void restore(const Json& result);
+    void prependTurns(const Json& turns);
+    void olderHistory(const std::string& cursor);
 };
 }

@@ -58,9 +58,9 @@ void Protocol::startThread(){
                     "if the game or situation cannot be identified. Never invent what the image shows. "
                     "Do not modify files, run console commands, or control the game.":instructions()}};
     if(!resume_.empty()){
-        // Only the latest turns, summarized: a full history could exceed the 1 MiB line limit.
+        // Only the latest turn, summarized: a full history could exceed the 1 MiB line limit.
         params["threadId"]=resume_;params["excludeTurns"]=true;
-        params["initialTurnsPage"]={{"limit",20},{"sortDirection","desc"},{"itemsView","summary"}};
+        params["initialTurnsPage"]={{"limit",1},{"sortDirection","desc"},{"itemsView","summary"}};
         request("thread/resume",std::move(params));return;
     }
     params["allowProviderModelFallback"]=false;
@@ -75,7 +75,7 @@ bool Protocol::retryThread(){
 // Leaves the current conversation (kept by Codex) for a new one, only between turns.
 bool Protocol::newThread(){
     if(gameplay_ || !state.ready || !state.authenticated || state.busy || !state.approvals.empty() || threadPending())return false;
-    state.thread.clear();state.conversation.clear();resume_.clear();state.messages.clear();state.response.clear();
+    state.thread.clear();state.conversation.clear();resume_.clear();history_.clear();resumeSkipped_=false;state.messages.clear();state.response.clear();
     state.turnStatus.clear();state.threadFailed=false;items_.clear();++state.chatRevision;
     startThread();state.status="Starting a new conversation...";++state.revision;
     return true;
@@ -84,18 +84,14 @@ bool Protocol::resuming() const {
     for(const auto& item:pending_)if(item.second=="thread/resume")return true;
     return false;
 }
-// Shows the stored messages of a resumed thread; its approvals and running items are not restored.
-void Protocol::restore(const Json& result){
-    state.messages.clear();
-    // The requested page lists the newest turns first; a server without pages returns thread.turns.
-    const auto& page=object(result,"initialTurnsPage");const auto data=page.find("data");
-    const auto& thread=object(result,"thread");const auto all=thread.find("turns");
-    Json turns=Json::array();
-    if(data!=page.end() && data->is_array()){for(auto it=data->rbegin();it!=data->rend();++it)turns.push_back(*it);}
-    else if(all!=thread.end() && all->is_array())turns=*all;
-    for(const auto& turn:turns){
-        const auto items=turn.find("items");
-        if(items==turn.end() || !items->is_array())continue;
+// Adds turns (newest first) before the shown messages. A summarized turn holds its first
+// prompt and last reply; approvals, commands and file changes are not restored.
+void Protocol::prependTurns(const Json& turns){
+    if(!turns.is_array())return;
+    std::deque<Message> older;
+    for(auto turn=turns.rbegin();turn!=turns.rend();++turn){
+        const auto items=turn->find("items");
+        if(items==turn->end() || !items->is_array())continue;
         for(const auto& item:*items){
             const auto type=field(item,"type");std::string text;
             if(type=="agentMessage")text=field(item,"text");
@@ -105,14 +101,23 @@ void Protocol::restore(const Json& result){
             if(text.size()>262144){ // cut on a UTF-8 boundary
                 std::size_t end=262144;while(end && (static_cast<unsigned char>(text[end])&0xc0)==0x80)--end;text.resize(end);
             }
-            state.messages.push_back({type=="userMessage",std::move(text),field(item,"id")});
+            older.push_back({type=="userMessage",std::move(text),field(item,"id")});
         }
     }
+    historyTurns_+=turns.size();
+    state.messages.insert(state.messages.begin(),older.begin(),older.end());
     std::size_t bytes=0;for(const auto& m:state.messages)bytes+=m.text.size();
     while(!state.messages.empty() && (state.messages.size()>64 || bytes>1048576)){
         bytes-=state.messages.front().text.size();state.messages.pop_front();
     }
     ++state.chatRevision;
+}
+// Older turns are fetched one per request, so no answer can exceed the 1 MiB line limit.
+void Protocol::olderHistory(const std::string& cursor){
+    std::size_t bytes=0;for(const auto& m:state.messages)bytes+=m.text.size();
+    if(history_.empty() || history_!=state.thread || cursor.empty() || historyTurns_>=20 ||
+       state.messages.size()>=64 || bytes>=1048576){history_.clear();return;}
+    request("thread/turns/list",{{"threadId",history_},{"cursor",cursor},{"limit",1},{"sortDirection","desc"},{"itemsView","summary"}});
 }
 static bool threadId(std::string_view id){
     return !id.empty() && id.size()<=128 && std::all_of(id.begin(),id.end(),[](char c){
@@ -121,7 +126,7 @@ static bool threadId(std::string_view id){
 void Protocol::begin(std::string_view resume,bool skipResume){
     std::string saved=!gameplay_ && threadId(resume)?std::string(resume):std::string(); // may view state.conversation
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
-    resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;
+    resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;history_.clear();
     state.conversation=std::move(saved);
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
@@ -235,10 +240,11 @@ bool Protocol::ingest(std::string_view line){
         const auto wide=id->get<std::uint64_t>();if(wide>2147483647)return false;
         auto it=pending_.find(static_cast<int>(wide));if(it==pending_.end())return true;
         const auto requestMethod=it->second;pending_.erase(it);
-        if(j.contains("error")) {
+        if(j.contains("error") && requestMethod=="thread/turns/list")history_.clear(); // the history stays partial
+        else if(j.contains("error")) {
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
-            if(requestMethod=="thread/start")state.threadFailed=true;
+            if(requestMethod=="thread/start"){state.threadFailed=true;resumeSkipped_=false;}
             // A new conversation starts, without any prompt. The saved one is replaced only once
             // a turn starts in the new thread, so a transient failure does not lose it.
             if(requestMethod=="thread/resume"){
@@ -262,7 +268,21 @@ bool Protocol::ingest(std::string_view line){
                 if(!threadId(state.thread)){
                     state.thread.clear();resume_.clear();startThread();
                     state.status="The previous conversation could not be resumed. A new one has started.";
-                } else {state.conversation=state.thread;restore(r);state.status="Conversation resumed";}
+                } else {
+                    state.conversation=state.thread;state.messages.clear();history_=state.thread;historyTurns_=0;
+                    const auto& page=object(r,"initialTurnsPage");const auto data=page.find("data");
+                    const auto all=thread.find("turns");
+                    if(data!=page.end() && data->is_array()){prependTurns(*data);olderHistory(field(page,"nextCursor"));}
+                    else { // a server without pages returns thread.turns, oldest first
+                        history_.clear();
+                        if(all!=thread.end() && all->is_array())prependTurns(Json(Json::array_t(all->rbegin(),all->rend())));
+                    }
+                    state.status="Conversation resumed";
+                }
+            } else if(requestMethod=="thread/turns/list"){
+                const auto data=r.find("data");
+                if(history_==state.thread && data!=r.end() && data->is_array()){prependTurns(*data);olderHistory(field(r,"nextCursor"));}
+                else history_.clear();
             }
             else if(requestMethod=="turn/start"){
                 state.turn=field(object(r,"turn"),"id");flushInterrupt();

@@ -202,10 +202,11 @@ The app remembers the Codex thread of the last conversation once a prompt has
 been sent in it; only its ID is stored, in the title's own storage
 (`/download0/codex-ps5-conversation`), while Codex keeps the conversation in
 `/data/codex-ps5/home`. At the next launch, and after a reconnection to the
-engine, the app resumes that thread with `thread/resume`, shows the prompts and
-replies of its last 20 turns (a summarized page, so a long history stays bounded)
-and reads **Conversation resumed**. Approval decisions, commands and file changes
-of earlier turns are not shown again.
+engine, the app resumes that thread with `thread/resume` and reads **Conversation
+resumed**. It then shows the last 20 turns at most (64 messages, 1 MiB), each as
+its first prompt and last reply, fetched one turn per request so that no answer
+exceeds the 1 MiB line limit; prompts can be sent meanwhile. Approval decisions,
+commands, file changes and intermediate replies of earlier turns are not shown again.
 
 If Codex cannot resume it, the app starts a new conversation and shows why above
 the composer, with the reason given by Codex. If a resume ends the connection, it

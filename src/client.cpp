@@ -64,6 +64,7 @@ void Client::loop(){
         {std::lock_guard lock(mutex_);resumeCut=protocol_.resuming();protocol_.disconnect();conversation=protocol_.state.conversation;}
         // Lines read after the last pass may have changed it (a resume answered just before the connection ended).
         if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
+        {std::lock_guard lock(mutex_);if(stopping_)return;} // quitting: saved above, no reconnect delay
         // Longer than the service's 1 s SIGTERM grace: the previous engine has exited before
         // the next one opens the same conversation.
         platform::sleep(1500000);

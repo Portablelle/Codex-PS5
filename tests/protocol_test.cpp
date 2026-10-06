@@ -159,8 +159,8 @@ int main(){
         auto resume=Json::parse(f.outgoing.back());
         assert(resume["method"]=="thread/resume" && resume["id"]==3 && resume["params"]["threadId"]=="saved-thread_1");
         assert(resume["params"]["approvalPolicy"]=="untrusted" && resume["params"]["cwd"]=="/data/codex-ps5/workspace");
-        // Only a bounded page of recent turns is asked for, never the full history.
-        assert(resume["params"]["excludeTurns"]==true && resume["params"]["initialTurnsPage"]["limit"]==20);
+        // Only the latest turn is asked for, never the full history.
+        assert(resume["params"]["excludeTurns"]==true && resume["params"]["initialTurnsPage"]["limit"]==1);
         assert(resume["params"]["initialTurnsPage"]["sortDirection"]=="desc" && resume["params"]["initialTurnsPage"]["itemsView"]=="summary");
         assert(!f.retryThread() && !f.submit("Hello") && f.outgoing.size()==4); // nothing while it is resumed
         assert(f.ingest(R"({"id":3,"result":{"thread":{"id":"saved-thread_1","turns":[
@@ -198,12 +198,60 @@ int main(){
             {"id":"t2","items":[{"type":"userMessage","id":"u2","content":[{"type":"text","text":"Second"}]},{"type":"agentMessage","id":"a2","text":"Two"}]},
             {"id":"t1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"First"}]}]}],"nextCursor":null}}})"));
         assert(f.state.messages.size()==3 && f.state.messages[0].text=="First" && f.state.messages[1].text=="Second" && f.state.messages[2].text=="Two");
+        assert(f.outgoing.size()==4 && Json::parse(f.outgoing.back())["method"]=="thread/resume"); // no cursor: nothing more to fetch
+    }
+    {
+        // Older turns are fetched one per request, so no answer can exceed the line limit.
+        const auto turn=[](int n){
+            return Json({{"id","t"+std::to_string(n)},{"items",Json::array({
+                {{"type","userMessage"},{"id","u"+std::to_string(n)},{"content",Json::array({{{"type","text"},{"text","Q"+std::to_string(n)}}})}},
+                {{"type","agentMessage"},{"id","a"+std::to_string(n)},{"text","A"+std::to_string(n)}}})}});
+        };
+        const auto page=[&](int id,int n,Json cursor,bool initial){
+            Json list={{"data",Json::array({turn(n)})},{"nextCursor",cursor}};
+            return Json({{"id",id},{"result",initial?Json({{"thread",{{"id","long"}}},{"initialTurnsPage",list}}):list}}).dump();
+        };
+        Protocol f;f.begin("long");f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(f.ingest(page(3,30,"c29",true)) && f.state.status=="Conversation resumed" && f.state.messages.size()==2);
+        auto list=Json::parse(f.outgoing.back());
+        assert(list["method"]=="thread/turns/list" && list["id"]==4 && list["params"]["threadId"]=="long" && list["params"]["cursor"]=="c29");
+        assert(list["params"]["limit"]==1 && list["params"]["sortDirection"]=="desc" && list["params"]["itemsView"]=="summary");
+        assert(f.ingest(page(4,29,"c28",false)) && f.state.messages.size()==4);
+        assert(f.state.messages[0].text=="Q29" && f.state.messages[1].text=="A29" && f.state.messages[2].text=="Q30" && f.state.messages[3].text=="A30");
+        // Prompts can be sent meanwhile; older turns still go before them.
+        assert(f.submit("Now") && f.state.messages.back().text=="Now");
+        int id=Json::parse(f.outgoing.back())["id"].get<int>();assert(id==6); // 5 is the next page
+        for(int n=28,request=5;;--n){
+            const auto before=f.outgoing.size();assert(f.ingest(page(request,n,"c"+std::to_string(n-1),false)));
+            if(f.outgoing.size()==before)break;
+            const auto next=Json::parse(f.outgoing.back());
+            assert(next["method"]=="thread/turns/list" && next["params"]["cursor"]=="c"+std::to_string(n-1));
+            request=next["id"].get<int>();
+        }
+        // At most 20 turns are restored, in order, before the new prompt.
+        assert(f.state.messages.size()==41 && f.state.messages.front().text=="Q11" && f.state.messages[39].text=="A30");
+        assert(f.state.messages.back().text=="Now" && f.state.status=="Codex is thinking...");
+    }
+    {
+        // A failed page leaves the history partial without an error; /new drops pages still on their way.
+        Protocol f;f.begin("long");f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(f.ingest(R"({"id":3,"result":{"thread":{"id":"long"},"initialTurnsPage":{"data":[],"nextCursor":"c1"}}})"));
+        assert(f.ingest(R"({"id":4,"error":{"message":"gone"}})") && f.state.status=="Conversation resumed" && f.outgoing.size()==5);
+        Protocol n;n.begin("long");n.ingest(R"({"id":1,"result":{}})");n.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(n.ingest(R"({"id":3,"result":{"thread":{"id":"long"},"initialTurnsPage":{"data":[],"nextCursor":"c1"}}})"));
+        assert(n.newThread() && n.ingest(R"({"id":5,"result":{"thread":{"id":"fresh"}}})"));
+        assert(n.ingest(R"({"id":4,"result":{"data":[{"id":"old","items":[{"type":"agentMessage","id":"x","text":"stale"}]}],"nextCursor":"c0"}})"));
+        assert(n.state.messages.empty() && n.outgoing.size()==6 && Json::parse(n.outgoing.back())["method"]=="thread/start");
         // A resume that cut the connection is skipped: a new conversation starts, the saved one is kept.
         Protocol g;g.begin("too-big",true);assert(g.state.conversation=="too-big");
         g.ingest(R"({"id":1,"result":{}})");g.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
         assert(Json::parse(g.outgoing.back())["method"]=="thread/start" && !g.resuming());
         assert(g.ingest(R"({"id":3,"result":{"thread":{"id":"other"}}})") && g.state.conversation=="too-big");
         assert(g.state.status=="The previous conversation could not be resumed. A new one has started.");
+        // That message only belongs to the new conversation started in its place.
+        Protocol k;k.begin("too-big",true);k.ingest(R"({"id":1,"result":{}})");k.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(k.ingest(R"({"id":3,"error":{"message":"model unavailable"}})") && k.retryThread());
+        assert(k.ingest(R"({"id":4,"result":{"thread":{"id":"later"}}})") && k.state.status=="Ready");
         Protocol h;h.begin("big");h.ingest(R"({"id":1,"result":{}})");h.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
         assert(h.resuming());h.ingest(R"({"id":3,"result":{"thread":{"id":"big"}}})");assert(!h.resuming());
     }
