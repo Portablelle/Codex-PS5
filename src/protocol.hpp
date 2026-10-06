@@ -30,7 +30,8 @@ public:
     explicit Protocol(bool gameplay=false):gameplay_(gameplay){}
     State state;
     std::deque<std::string> outgoing;
-    void begin(std::string_view resume={});
+    // skipResume keeps the saved conversation but starts a new one (its last resume cut the connection).
+    void begin(std::string_view resume={},bool skipResume=false);
     void disconnect();
     bool ingest(std::string_view line);
     void login();
@@ -39,6 +40,7 @@ public:
     bool newThread();
     void interrupt();
     bool interruptPending() const {return interruptPending_;}
+    bool resuming() const;
     void decide(bool accept);
 private:
     bool gameplay_=false;
@@ -50,12 +52,13 @@ private:
     std::uint64_t turnSequence_=0;
     bool interruptPending_=false; // interrupt asked before the turn id was known
     std::string resume_; // saved thread to resume instead of starting one
+    bool resumeSkipped_=false;
     void flushInterrupt();
     void agentMessage(std::string id,std::string text,bool append);
     void request(const char* method,Json params);
     void emit(Json message);
     void startThread();
     bool threadPending() const;
-    void restore(const Json& thread);
+    void restore(const Json& result);
 };
 }

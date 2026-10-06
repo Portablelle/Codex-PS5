@@ -202,12 +202,21 @@ The app remembers the Codex thread of the last conversation once a prompt has
 been sent in it; only its ID is stored, in the title's own storage
 (`/download0/codex-ps5-conversation`), while Codex keeps the conversation in
 `/data/codex-ps5/home`. At the next launch, and after a reconnection to the
-engine, the app resumes that thread with `thread/resume`, shows its stored
-prompts and replies, and reads **Conversation resumed**. Approval decisions,
-commands and file changes of earlier turns are not shown again. If Codex cannot
-resume it, the app starts a new conversation and says so in the status line, with
-the reason given by Codex; the new conversation replaces the remembered one once a prompt has been sent in it. To leave a conversation, enter `/new` and press Options while Codex is idle:
-the screen is cleared and a new conversation starts; the previous one stays in the
+engine, the app resumes that thread with `thread/resume`, shows the prompts and
+replies of its last 20 turns (a summarized page, so a long history stays bounded)
+and reads **Conversation resumed**. Approval decisions, commands and file changes
+of earlier turns are not shown again.
+
+If Codex cannot resume it, the app starts a new conversation and shows why above
+the composer, with the reason given by Codex. If a resume ends the connection, it
+is not repeated in a loop: the reconnection starts a new conversation. In both
+cases the remembered conversation is kept, and tried again at the next launch,
+until a prompt is sent in the new one. After a disconnect the app waits 1.5 s
+before reconnecting, so the previous engine has exited before the conversation
+is opened again.
+
+To leave a conversation, enter `/new` and press Options while Codex is idle: the
+screen is cleared and a new conversation starts; the previous one stays in the
 Codex state but is no longer resumed. The in-game companion never resumes a
 conversation.
 

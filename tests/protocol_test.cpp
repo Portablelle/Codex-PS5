@@ -159,6 +159,9 @@ int main(){
         auto resume=Json::parse(f.outgoing.back());
         assert(resume["method"]=="thread/resume" && resume["id"]==3 && resume["params"]["threadId"]=="saved-thread_1");
         assert(resume["params"]["approvalPolicy"]=="untrusted" && resume["params"]["cwd"]=="/data/codex-ps5/workspace");
+        // Only a bounded page of recent turns is asked for, never the full history.
+        assert(resume["params"]["excludeTurns"]==true && resume["params"]["initialTurnsPage"]["limit"]==20);
+        assert(resume["params"]["initialTurnsPage"]["sortDirection"]=="desc" && resume["params"]["initialTurnsPage"]["itemsView"]=="summary");
         assert(!f.retryThread() && !f.submit("Hello") && f.outgoing.size()==4); // nothing while it is resumed
         assert(f.ingest(R"({"id":3,"result":{"thread":{"id":"saved-thread_1","turns":[
             {"id":"t1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"Free space?"},{"type":"localImage","path":"/data/a.png"}]},
@@ -187,6 +190,22 @@ int main(){
         f.ingest(Json({{"id",init},{"result",Json::object()}}).dump());
         f.ingest(Json({{"id",init+1},{"result",{{"account",{{"type","chatgpt"}}}}}}).dump());
         resume=Json::parse(f.outgoing.back());assert(resume["method"]=="thread/resume" && resume["params"]["threadId"]=="fresh");
+    }
+    {
+        // The page lists the newest turns first; they are shown oldest first.
+        Protocol f;f.begin("paged");f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(f.ingest(R"({"id":3,"result":{"thread":{"id":"paged","turns":[]},"initialTurnsPage":{"data":[
+            {"id":"t2","items":[{"type":"userMessage","id":"u2","content":[{"type":"text","text":"Second"}]},{"type":"agentMessage","id":"a2","text":"Two"}]},
+            {"id":"t1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"First"}]}]}],"nextCursor":null}}})"));
+        assert(f.state.messages.size()==3 && f.state.messages[0].text=="First" && f.state.messages[1].text=="Second" && f.state.messages[2].text=="Two");
+        // A resume that cut the connection is skipped: a new conversation starts, the saved one is kept.
+        Protocol g;g.begin("too-big",true);assert(g.state.conversation=="too-big");
+        g.ingest(R"({"id":1,"result":{}})");g.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(Json::parse(g.outgoing.back())["method"]=="thread/start" && !g.resuming());
+        assert(g.ingest(R"({"id":3,"result":{"thread":{"id":"other"}}})") && g.state.conversation=="too-big");
+        assert(g.state.status=="The previous conversation could not be resumed. A new one has started.");
+        Protocol h;h.begin("big");h.ingest(R"({"id":1,"result":{}})");h.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(h.resuming());h.ingest(R"({"id":3,"result":{"thread":{"id":"big"}}})");assert(!h.resuming());
     }
     {
         // When a conversation cannot be resumed a new one starts, without a prompt; the saved

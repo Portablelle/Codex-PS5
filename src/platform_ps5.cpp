@@ -97,7 +97,8 @@ bool saveConversation(std::string_view thread) noexcept {
     const int fd=sceKernelOpen(conversationFile,O_WRONLY|O_CREAT|O_TRUNC,0600);
     bool saved=fd>=0 && (thread.empty() || sceKernelWrite(fd,thread.data(),thread.size())==static_cast<std::int64_t>(thread.size()));
     if(fd>=0 && sceKernelClose(fd)<0)saved=false;
-    if(!saved)log("Conversation not saved");
+    static std::atomic<bool> reported{false}; // retried every pass: keep the log budget for other diagnostics
+    if(!saved && !reported.exchange(true))log("Conversation not saved");
     return saved;
 }
 }

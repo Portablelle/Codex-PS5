@@ -57,7 +57,12 @@ void Protocol::startThread(){
                     "Give actionable help, avoid unsolicited spoilers, and ask a short question "
                     "if the game or situation cannot be identified. Never invent what the image shows. "
                     "Do not modify files, run console commands, or control the game.":instructions()}};
-    if(!resume_.empty()){params["threadId"]=resume_;request("thread/resume",std::move(params));return;}
+    if(!resume_.empty()){
+        // Only the latest turns, summarized: a full history could exceed the 1 MiB line limit.
+        params["threadId"]=resume_;params["excludeTurns"]=true;
+        params["initialTurnsPage"]={{"limit",20},{"sortDirection","desc"},{"itemsView","summary"}};
+        request("thread/resume",std::move(params));return;
+    }
     params["allowProviderModelFallback"]=false;
     request("thread/start",std::move(params));
 }
@@ -75,11 +80,20 @@ bool Protocol::newThread(){
     startThread();state.status="Starting a new conversation...";++state.revision;
     return true;
 }
+bool Protocol::resuming() const {
+    for(const auto& item:pending_)if(item.second=="thread/resume")return true;
+    return false;
+}
 // Shows the stored messages of a resumed thread; its approvals and running items are not restored.
-void Protocol::restore(const Json& thread){
+void Protocol::restore(const Json& result){
     state.messages.clear();
-    const auto turns=thread.find("turns");
-    if(turns!=thread.end() && turns->is_array())for(const auto& turn:*turns){
+    // The requested page lists the newest turns first; a server without pages returns thread.turns.
+    const auto& page=object(result,"initialTurnsPage");const auto data=page.find("data");
+    const auto& thread=object(result,"thread");const auto all=thread.find("turns");
+    Json turns=Json::array();
+    if(data!=page.end() && data->is_array()){for(auto it=data->rbegin();it!=data->rend();++it)turns.push_back(*it);}
+    else if(all!=thread.end() && all->is_array())turns=*all;
+    for(const auto& turn:turns){
         const auto items=turn.find("items");
         if(items==turn.end() || !items->is_array())continue;
         for(const auto& item:*items){
@@ -104,10 +118,11 @@ static bool threadId(std::string_view id){
     return !id.empty() && id.size()<=128 && std::all_of(id.begin(),id.end(),[](char c){
         return (c>='0' && c<='9') || (c>='a' && c<='z') || (c>='A' && c<='Z') || c=='-' || c=='_';});
 }
-void Protocol::begin(std::string_view resume){
-    resume_=!gameplay_ && threadId(resume)?std::string(resume):std::string(); // may view state.conversation
+void Protocol::begin(std::string_view resume,bool skipResume){
+    std::string saved=!gameplay_ && threadId(resume)?std::string(resume):std::string(); // may view state.conversation
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
-    state.conversation=resume_;
+    resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;
+    state.conversation=std::move(saved);
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
@@ -240,12 +255,14 @@ bool Protocol::ingest(std::string_view line){
             } else if(requestMethod=="thread/start"){
                 state.thread=field(object(r,"thread"),"id");
                 if(state.status=="Starting a new conversation...")state.status="Ready";
+                if(resumeSkipped_)state.status="The previous conversation could not be resumed. A new one has started.";
+                resumeSkipped_=false;
             } else if(requestMethod=="thread/resume"){
                 const auto& thread=object(r,"thread");state.thread=field(thread,"id");
                 if(!threadId(state.thread)){
                     state.thread.clear();resume_.clear();startThread();
                     state.status="The previous conversation could not be resumed. A new one has started.";
-                } else {state.conversation=state.thread;restore(thread);state.status="Conversation resumed";}
+                } else {state.conversation=state.thread;restore(r);state.status="Conversation resumed";}
             }
             else if(requestMethod=="turn/start"){
                 state.turn=field(object(r,"turn"),"id");flushInterrupt();

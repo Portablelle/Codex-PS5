@@ -13,7 +13,7 @@
 #include <unistd.h>
 using namespace assistant;
 namespace {
-int engine=-1,app=-1;
+int engine=-1;std::atomic<int> app{-1}; // -1: the engine is unavailable
 std::mutex storage;std::string stored="saved-thread";std::vector<std::string> writes;std::atomic<int> failures{0};
 }
 namespace botty::platform {
@@ -21,7 +21,7 @@ int systemLanguage() noexcept {return 1;}
 std::uint64_t now() noexcept {return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());}
 void sleep(unsigned us) noexcept {std::this_thread::sleep_for(std::chrono::microseconds(us));}
 void log(const char*) noexcept {}
-int connectLocal() noexcept {return app<0?-1:dup(app);}
+int connectLocal() noexcept {const int fd=app;return fd<0?-1:dup(fd);}
 int send(int fd,const void* bytes,std::size_t length) noexcept {return static_cast<int>(::send(fd,bytes,length,0));}
 int receive(int fd,void* bytes,std::size_t length) noexcept {
     pollfd p{fd,POLLIN,0};if(poll(&p,1,20)==0)return -2;
@@ -95,13 +95,22 @@ int main(){
     // A broken line ends the connection; the reconnection resumes the conversation, never a prompt.
     const std::string broken="not json\n";assert(::send(engine,broken.data(),broken.size(),0)>0);
     request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="fresh");
-    // A conversation changed by the last lines before the connection ends is still saved,
-    // and the next connection resumes it from memory even when that write failed.
-    failures=1;reply(request,{{"thread",{{"id","moved"},{"turns",Json::array()}}}},broken);
-    request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="moved");
+    // A conversation changed by the last lines before the connection ends is saved right away,
+    // while no new connection can save it.
+    app=-1;reply(request,{{"thread",{{"id","moved"},{"turns",Json::array()}}}},broken);
     wait([&]{std::lock_guard lock(storage);return stored=="moved";});
-    reply(request,{{"thread",{{"id","moved"},{"turns",Json::array()}}}});
-    wait([&]{return client.snapshot().thread=="moved";});
-    client.stop();close(engine);close(app);
+    app=pair[1];request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="moved");
+    // When that write fails, the next connection resumes it from memory and saves it.
+    failures=1;reply(request,{{"thread",{{"id","moved-again"},{"turns",Json::array()}}}},broken);
+    request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="moved-again");
+    wait([&]{std::lock_guard lock(storage);return stored=="moved-again";});
+    // A resume whose answer ends the connection (e.g. too large) is not repeated in a loop:
+    // the reconnection starts a new conversation and keeps the saved one for the next launch.
+    assert(::send(engine,broken.data(),broken.size(),0)>0);
+    request=reconnect();assert(request["method"]=="thread/start");
+    reply(request,{{"thread",{{"id","replacement"}}}});
+    wait([&]{return client.snapshot().thread=="replacement";});
+    {std::lock_guard lock(storage);assert(stored=="moved-again");}
+    client.stop();close(engine);close(pair[1]);
     std::cout<<"client tests passed\n";
 }

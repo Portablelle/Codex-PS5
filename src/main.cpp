@@ -114,7 +114,8 @@ std::vector<ChatRow> chatRows(Canvas& c,const assistant::State& state){
     return rows;
 }
 bool failing(std::string_view status){
-    return status.starts_with("Error") || status.starts_with("Failed") || status.starts_with("Sign-in failed") || status.starts_with("Engine");
+    return status.starts_with("Error") || status.starts_with("Failed") || status.starts_with("Sign-in failed") || status.starts_with("Engine") ||
+        status.starts_with("The previous conversation could not") || status.starts_with("A new conversation has started.");
 }
 void header(Canvas& c,const assistant::State& state){
     c.rounded(left,58,44,44,12,accent);c.label(left+(44-c.text_width("C",24))/2,62,"C",24,bg);

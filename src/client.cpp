@@ -13,6 +13,7 @@ void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
 void Client::decide(bool accept){std::lock_guard lock(mutex_);protocol_.decide(accept);}
 void* Client::run(void* p){static_cast<Client*>(p)->loop();return nullptr;}
 void Client::loop(){
+    bool resumeCut=false;
     for(;;){
         {std::lock_guard lock(mutex_);if(stopping_)return;}
         int fd=platform::connectLocal();
@@ -22,8 +23,9 @@ void Client::loop(){
              if(protocol_.state.status!=status){protocol_.state.status=status;++protocol_.state.revision;}}
             platform::sleep(500000);continue;
         }
-                // The conversation in memory is the one to resume, even when it could not be written yet.
-        {std::lock_guard lock(mutex_);protocol_.begin(protocol_.state.conversation);}
+        // The conversation in memory is the one to resume, even when it could not be written yet.
+        // A resume that lost the connection is not repeated: its answer may be too large to read.
+        {std::lock_guard lock(mutex_);protocol_.begin(protocol_.state.conversation,resumeCut);}
         std::string incoming;bool valid=true;std::uint64_t quitDeadline=0;
         while(valid){
             std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;std::string conversation;
@@ -59,10 +61,12 @@ void Client::loop(){
         }
         platform::closeSocket(fd);
         std::string conversation;
-        {std::lock_guard lock(mutex_);protocol_.disconnect();conversation=protocol_.state.conversation;}
+        {std::lock_guard lock(mutex_);resumeCut=protocol_.resuming();protocol_.disconnect();conversation=protocol_.state.conversation;}
         // Lines read after the last pass may have changed it (a resume answered just before the connection ended).
         if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
-        platform::sleep(500000);
+        // Longer than the service's 1 s SIGTERM grace: the previous engine has exited before
+        // the next one opens the same conversation.
+        platform::sleep(1500000);
     }
 }
 }
