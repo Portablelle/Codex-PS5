@@ -45,7 +45,9 @@ for another language. Dictation detects the spoken language automatically.
 Repository documentation, source strings and sample conversations use English.
 French interface translations are retained in `src/language.hpp`. The host UI
 preview uses English by default; set `PREVIEW_FRENCH=1` to preview the French
-interface (`PREVIEW_ENGLISH=1` explicitly selects English).
+interface (`PREVIEW_ENGLISH=1` explicitly selects English). `PREVIEW_KEYBOARD`,
+`PREVIEW_APPROVAL`, `PREVIEW_QUIT`, `PREVIEW_THINKING` and `PREVIEW_SIGNIN`
+render the other screens, and `PREVIEW_STATUS` overrides the status text.
 
 ## Dictation
 

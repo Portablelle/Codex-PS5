@@ -18,6 +18,8 @@ bool Client::start(){
         {true,"How much space is left on my PS5 and external drive?",{}},
         {false,"- **PS5 internal storage** : **510.4 GiB** available.\n- **External drive** : **575.5 GiB** available.\n\nVolumes checked with `df -h`.","reply"}};
     if(std::getenv("PREVIEW_THINKING")){protocol_.state.messages.pop_back();protocol_.state.busy=true;protocol_.state.status="Codex is thinking...";}
+    if(std::getenv("PREVIEW_SIGNIN")){protocol_.state.code="K7QF-29XM";protocol_.state.url="https://auth.openai.com/codex/device";protocol_.state.status="Sign in on your phone using the displayed code.";}
+    if(const char* status=std::getenv("PREVIEW_STATUS"))protocol_.state.status=status;
     if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt"});
     return true;
 }
