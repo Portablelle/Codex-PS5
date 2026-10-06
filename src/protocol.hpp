@@ -30,6 +30,7 @@ public:
     bool ingest(std::string_view line);
     void login();
     bool submit(std::string_view text,std::string_view imagePath={});
+    bool retryThread();
     void interrupt();
     bool interruptPending() const {return interruptPending_;}
     void decide(bool accept);

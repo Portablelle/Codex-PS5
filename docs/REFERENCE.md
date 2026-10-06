@@ -191,6 +191,11 @@ text). Conversation resumption after closing, a file browser and a full diff
 view are not available yet. A disconnect stops the app-server for that session;
 an action already started may continue or may already have modified files.
 It is not rolled back. Prompts are never automatically resent.
+If Codex cannot start a conversation (for example when the model is
+unavailable), the error stays in the status line. Pressing Options again starts
+a new attempt and keeps the prompt in the composer; send it once the status
+returns to **Ready**. The in-game shortcut retries the same way and reports
+"Codex is not ready" meanwhile.
 
 ## Building
 

@@ -33,6 +33,7 @@ inline std::string tr(std::string_view english) {
         {"Engine disconnected. The request will not be resent.","Moteur deconnecte. La requete ne sera pas renvoyee."},
         {"Codex is thinking...","Codex réfléchit..."},
         {"Codex is resuming...","Codex reprend..."},
+        {"Starting a new conversation...","Démarrage d'une nouvelle conversation..."},
         {"Next action needs approval","Action suivante a confirmer"},
         {"\nDirectory: ","\nDossier : "},
         {"\nRequested root: ","\nRacine demandee : "},

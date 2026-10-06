@@ -7,7 +7,7 @@ bool Client::start(){return platform::startWorker(run,this,&worker_);}
 void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
-void Client::submit(std::string text){std::lock_guard lock(mutex_);protocol_.submit(text);}
+bool Client::submit(std::string text){std::lock_guard lock(mutex_);return protocol_.submit(text);}
 void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
 void Client::decide(bool accept){std::lock_guard lock(mutex_);protocol_.decide(accept);}
 void* Client::run(void* p){static_cast<Client*>(p)->loop();return nullptr;}

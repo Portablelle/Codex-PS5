@@ -375,8 +375,9 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
         if(pressed&PS5_PAD_BUTTON_SQUARE)keyboard=!keyboard;
-        if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !state.thread.empty() && !composer.empty()){
-            client.submit(composer);composer.clear();scroll=0;followConversation=true;
+        // Without a conversation (thread/start failed), Options retries it and keeps the prompt.
+        if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !composer.empty()){
+            if(client.submit(composer)){composer.clear();scroll=0;followConversation=true;}
         }
         if(keyboard){
             const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());

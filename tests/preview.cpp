@@ -24,7 +24,7 @@ bool Client::start(){
     return true;
 }
 void Client::stop(){}State Client::snapshot(){return protocol_.state;}
-void Client::login(){}void Client::submit(std::string){}void Client::interrupt(){}void Client::decide(bool){}
+void Client::login(){}bool Client::submit(std::string){return true;}void Client::interrupt(){}void Client::decide(bool){}
 void Voice::toggle(){}void Voice::cancel(){}void Voice::shutdown(){}
 VoiceState Voice::snapshot(){return {};}
 std::string Voice::takeTranscript(){static bool first=true;if(first){first=false;return "List the files in /data and help me organize them.";}return {};}

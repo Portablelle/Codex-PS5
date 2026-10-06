@@ -25,6 +25,7 @@ int main(){
     assert(language::tr("Sign in")=="Connexion");
     // Short labels must not capture longer messages that share their prefix.
     assert(language::tr("Ready")=="Pret");
+    assert(language::tr("Starting a new conversation...")=="Démarrage d'une nouvelle conversation...");
     assert(language::tr("Sign in on your phone using the displayed code.").starts_with("Connecte-toi"));
     assert(language::tr("Dictation cancelled")=="Dictee annulee");
     assert(language::tr("APPROVAL NEEDED")=="AUTORISATION REQUISE");
