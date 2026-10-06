@@ -56,15 +56,22 @@ static void terminate(pid_t child){
     kill(-child,SIGKILL); /* Table full: fall back to waiting. */
     while(waitpid(child,&status,0)<0 && errno==EINTR){}
 }
+/* With block, waits for every engine to exit, still giving each its full SIGTERM grace period. */
 static void reap_dying(int block){
-    uint64_t now=now_ms();
     for(unsigned i=0;i<DYING_LIMIT;++i){
         struct dying *d=&dying_children[i];if(d->pid<=0)continue;
-        int status;pid_t result;
-        if(block){kill(-d->pid,SIGKILL);while(waitpid(d->pid,&status,0)<0 && errno==EINTR){}d->pid=0;continue;}
-        do {result=waitpid(d->pid,&status,WNOHANG);}while(result<0 && errno==EINTR);
-        if(result!=0){d->pid=0;continue;}
-        if(!d->killed && now>=d->kill_at){kill(-d->pid,SIGKILL);d->killed=1;}
+        for(;;){
+            int status;pid_t result;
+            do {result=waitpid(d->pid,&status,WNOHANG);}while(result<0 && errno==EINTR);
+            if(result!=0){d->pid=0;break;}
+            if(now_ms()>=d->kill_at){
+                if(!d->killed){kill(-d->pid,SIGKILL);d->killed=1;}
+                if(block){while(waitpid(d->pid,&status,0)<0 && errno==EINTR){}d->pid=0;}
+                break;
+            }
+            if(!block)break;
+            usleep(10000);
+        }
     }
 }
 static void destroy(struct session *s){
