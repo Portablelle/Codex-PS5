@@ -1,238 +1,161 @@
-# Codex PS5 0.0.2 — native prototype
+<p align="center">
+  <img src="sce_sys/icon0.png" alt="Codex PS5 icon" width="128">
+</p>
 
-An assistant for files on a jailbroken PS5, with a native controller interface
-and local dictation. This project is not an official OpenAI or Sony application.
-The validation target is firmware 13.00 with Relapse/kstuff/ShadowMount.
-ChatGPT sign-in, local commands and chat have been tested on this console.
+# Codex PS5
 
-## How it works
+**Talk to Codex from your couch. Explore your PS5 files, dictate a request,
+and review actions with your controller.**
 
-Two components run **on the PS5**:
+Codex PS5 is a native homebrew app for a jailbroken PlayStation 5. The Codex
+engine and file tools run on the console; responses use your online ChatGPT
+account. Voice transcription runs locally, using Whisper and the DualSense
+microphone.
 
-* `assistant-service.elf`: the Codex 0.160.0 engine ported by
-  [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli), adapted to expose
-  `codex app-server` on a **127.0.0.1:49322** socket. Shell tools and file
-  modifications run locally.
-* `PPSA99105`: a native graphical application built with tools from
-  [OpenNOW PS5](https://github.com/Portablelle/opennow-ps5) and the Botty+ renderer.
-  It uses the app-server JSONL protocol without a browser.
+[Download a release](https://github.com/Portablelle/Codex-PS5/releases) ·
+[Installation & updates](INSTALL.md) · [What's new](CHANGELOG.md) ·
+[Technical details](docs/REFERENCE.md)
 
-The Botty portal can start the engine through the **Codex PS5** option once the
-files have been installed over FTP. The engine can also be launched with the
-Relapse ELF loader or Payload Manager. The portal verifies its checksum,
-but does not automatically download updates for this application.
+![Codex PS5 conversation view](docs/images/conversation.png)
+*Captured from the app's host renderer with a simulated conversation; these are
+interface previews, not photographs or console captures. Storage values are sample data.*
 
-The PPSA99105 title ID is provisional: check that it is available before the
-first installation. The build scripts do not install anything on the console.
+## What you can do
 
-Sign in to ChatGPT using a code displayed on the TV and confirmed on a phone.
-Codex responses require Internet access and an account with Codex access.
-The selected model is **GPT-6.1 SOL**, with **low** reasoning effort.
-The application does not include an SSH connection.
+- **Ask about your files.** Check storage, browse folders, inspect text, and ask
+  Codex to help organize files with the bundled local tools.
+- **Dictate with your controller.** Press △ to record and again to transcribe.
+  Review the text, then press Options to send it.
+- **Review actions on your TV.** Commands and file changes that need your
+  approval appear with their details. Decline is selected by default.
+- **Use English or French.** The app follows the console language, with QWERTY
+  in English and AZERTY in French. On a French console, R1 switches the interface
+  language while idle without changing your conversation.
+- **Sign in with your phone.** Press L1 and confirm the code shown on the TV.
 
-## Language
+<details>
+<summary>More interface screenshots</summary>
 
-At startup, the PS5 system language determines the interface language: French
-(France or Canada) on a French console, and English for all other languages
-or if reading the setting fails. On a French console only, **R1** switches
-between French and English while Codex and the microphone are idle.
-The choice applies to the current session; the next launch uses the system
-language again. This changes only interface text and the controller keyboard
-layout; it sends no request to OpenAI
-and preserves the signed-in account and the exact conversation. Messages are
-sent as entered, and Codex keeps the conversation language unless the user asks
-for another language. Dictation detects the spoken language automatically.
+### Controller keyboard
 
-Repository documentation, source strings and sample conversations use English.
-French interface translations are retained in `src/language.hpp`. The host UI
-preview uses English by default; set `PREVIEW_FRENCH=1` to preview the French
-interface (`PREVIEW_ENGLISH=1` explicitly selects English). `PREVIEW_KEYBOARD`,
-`PREVIEW_APPROVAL`, `PREVIEW_QUIT`, `PREVIEW_THINKING` and `PREVIEW_SIGNIN`
-render the other screens, and `PREVIEW_STATUS` overrides the status text.
+![Controller keyboard](docs/images/keyboard.png)
 
-## Dictation
+### Review an action
 
-Triangle starts AudioIn capture for the PS5 user, normally through the DualSense
-microphone. A headset may change the audio route. Triangle ends capture, which
-is limited to 30 seconds. Circle cancels it.
+![Command approval dialog](docs/images/approval.png)
 
-Whisper.cpp 1.8.3 automatically detects the spoken language and transcribes on the
-PS5 CPU using the multilingual `small` model quantized to Q5_1. Audio stays in
-console memory;
-no transcription API or additional key is required. The text appears in the
-prompt for review. **Options sends the text to Codex.** The submitted text is
-therefore processed by the online Codex service.
+These previews use the same renderer as the native app, with simulated session
+state. The approval example shows a file move that requires confirmation.
+</details>
 
-Transcription uses six CPU threads and greedy decoding, with automatic language
-detection and no initial vocabulary prompt.
+## Before installing
 
-The prototype reserves a 1 GiB native heap and enables Flash Attention on CPU.
-The first PS5 test exceeded the previous 512 MiB heap during Whisper
-initialization. Dictation now refuses to load the model unless the allocated
-heap has at least 768 MiB free. Other allocations retain the fallback to the
-system allocator.
+You need a jailbroken PS5 with native homebrew support through
+[kstuff / ShadowMount](https://github.com/PSBrew/ShadowMountPlus), an ELF loader
+(such as Relapse, on port 9021), and a computer or phone for transferring files.
+The validation setup is **firmware 13.00 with Relapse/kstuff/ShadowMount**;
+other firmware and tool combinations are not confirmed for this app.
 
-AudioIn capture, ChatGPT sign-in and Small Q5_1 transcription with six CPU
-threads have been confirmed on 13.00. Console testing found better recognition
-than Base, with longer transcription times.
-The energy filter removes obvious silence, but does not guarantee correct text:
-always review the dictation.
+Codex replies need an Internet connection and a ChatGPT account with Codex
+access. This is an early prototype, independent of OpenAI and Sony.
 
-## Installing the prototype
+## Install with PS5 Upload
 
-After creating the package with `tools/package.py`:
+Download these two files from the same
+[release](https://github.com/Portablelle/Codex-PS5/releases):
 
-1. Check that the PPSA99105 title ID is available on the console.
-2. Copy the complete `bundle/PPSA99105` folder to
-   `/data/homebrew/PPSA99105`, following the ShadowMount Folder workflow.
-3. Copy `bundle/assistant-service.elf` to
-   `/data/codex-ps5/payloads/assistant-service/assistant-service.elf`.
-   If this folder is absent, the service also looks for a Payload Manager import
-   named `assistant-service` or `assistant-service-*` under `/data/pldmgr/payloads`.
-   Also create `/data/ps5-ai-cli`: the legacy ELF loader still uses this
-   folder for its lock; Codex data remains under `/data/codex-ps5`.
-4. Launch the payload with the Relapse ELF loader (port 9021), or with
-   Payload Manager if used, then open Codex PS5 from the library.
-   The service must be relaunched after each console reboot.
-5. Use L1 to sign in to ChatGPT, then start by testing a request to read files
-   in the working directory.
+| File | What it contains |
+| --- | --- |
+| `codex-ps5-0.0.3-Folder.zip` | Native app, runtime modules, and the complete Whisper Small Q5_1 model |
+| `assistant-service.elf` | Codex engine and local file tools |
 
-The application folder must contain `assets/ggml-small-q5_1.bin` (about 190 MB).
-The Folder ZIP produced by the build alone does not yet include the model;
-use the final `codex-ps5-0.0.2.zip` package.
+1. Extract the Folder ZIP. Using [PS5 Upload](https://github.com/phantomptr/ps5upload)
+   or FTP, transfer **`PPSA99105`** into **`/data/homebrew`**.
+2. Create **`/data/codex-ps5/payloads/assistant-service`** and upload
+   **`assistant-service.elf`** there. Also create **`/data/ps5-ai-cli`** for the
+   loader's legacy lock file.
+3. Keep your jailbreak, kstuff, ShadowMount, and ELF loader active. Send
+   **the same `assistant-service.elf`** with PS5 Upload's payload sender to the
+   console's ELF loader on port **9021**.
+4. Once ShadowMount has registered the title, open **Codex PS5** from your
+   library. Press **L1** to sign in.
+
+The resulting paths must include:
+
+```text
+/data/homebrew/PPSA99105/eboot.bin
+/data/homebrew/PPSA99105/assets/ggml-small-q5_1.bin
+/data/codex-ps5/payloads/assistant-service/assistant-service.elf
+```
+
+Check that the provisional title ID **PPSA99105** is unused before your first
+install. Upload the complete folder, including `sce_sys`, `sce_module`, and
+`assets`. The service must be loaded again after a console reboot.
+
+The ZIP is a **ShadowMount Folder**, and the ELF is a **payload**. Use PS5
+Upload's transfer and payload features; its PKG installer is for actual `.pkg`
+files. See [the full guide](INSTALL.md) for FTP, Payload Manager, and troubleshooting.
+
+## Update an existing installation
+
+1. Close Codex PS5 and any experimental companion, then reboot the PS5 to stop
+   the old service. Reactivate your jailbreak, kstuff, ShadowMount, and ELF loader.
+2. Back up the existing app folder and service ELF. Replace the **complete
+   `PPSA99105` folder** and **`assistant-service.elf`** with files from the same
+   release. Let the transfer finish before launching.
+3. Send the new service ELF and open the app again.
+
+Keep **`/data/codex-ps5/home`** and **`/data/codex-ps5/workspace`**: they contain
+sign-in data and your files. Do not delete `/data/codex-ps5` to update.
+Details and rollback steps are in [INSTALL.md](INSTALL.md#updates).
 
 ## Controls
 
-An experimental in-game voice companion core, resident ELF payload, and host
-probe are available; see [INGAME.md](INGAME.md). The payload owns its conversation
-independently of the native window; the backend supports two independent clients.
-System-wide overlay, game capture, microphone/transcription, and spoken playback
-are not connected to the payload yet. No new controller shortcut is enabled.
-
 | Button | Action |
 | --- | --- |
-| Triangle | Start / finish dictation |
-| Square | Open / close the controller keyboard |
-| Cross | Enter a key / confirm a choice |
-| Options | Send the prompt (`/quit` opens the exit confirmation) |
-| Touchpad click | Open the exit confirmation |
+| △ | Start / finish dictation |
+| □ | Open / close the keyboard |
+| ✕ | Select / confirm |
+| Options | Send the prompt |
 | L1 | Sign in to ChatGPT |
-| R1 | French / English, only on a French PS5 while idle |
-| Circle | Cancel dictation / interrupt Codex / decline an action |
-| Up / down | Scroll through the response while the keyboard is closed |
+| R1 | Switch French / English on a French PS5, while idle |
+| ○ | Cancel dictation, interrupt a response, or decline |
+| ↑ / ↓ | Scroll the conversation while the keyboard is closed |
+| Touchpad click | Open the quit confirmation |
 
-The controller keyboard uses AZERTY in French and QWERTY in English. Switching
-the interface language with R1 also switches the keyboard layout immediately.
+## Prototype limitations
 
-To close the application, click the touchpad or enter `/quit` and press Options.
-The confirmation defaults to **Cancel**; select **Quit** with left/right and
-press Cross, or press Circle to go back. It is available even while disconnected
-or during dictation, a response or an approval request. Confirming stops dictation,
-declines pending approvals, requests interruption of the active turn and closes
-the connection before releasing application resources and exiting. An action
-already started is not rolled back; this prototype cannot resume the conversation.
+- Closing the app ends the conversation; conversation resumption is not
+  available yet. Disconnects never resend prompts automatically.
+- Transcription runs on the PS5 CPU and can take time. Always review the text.
+  Audio stays on the console; submitted prompts go to the online Codex service.
+- The engine runs with the payload's permissions, without a system sandbox.
+  Recognized simple inspection commands are accepted automatically; other
+  commands and file changes ask for approval. Trust the homebrew running on
+  your console: local service sockets are unauthenticated.
+- The in-game companion is an **experimental development component**. Overlay,
+  game capture, microphone, transcription, and spoken playback are not connected
+  to it. It is not part of the public installation package.
 
-Approval requests for commands and file changes appear in a window with
-scrollable details. The client automatically accepts recognized simple
-inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,
-`pwd`, `uname`, `whoami`, `readlink`, `ps5-tools` and named property reads with
-`sysctl`. This acceptance applies only to the requested command, never to the
-entire session. The bundled runtime shell's `-c` and `-lc` wrappers are also
-accepted when their sole command argument passes the same inspection filter
-(for example, `…/runtime/tools-<32-hex-id>/sh -lc 'df -h'`). Other shell paths,
-nested wrappers, scripts, arbitrary executable paths, compound commands,
-redirections, shell expansions and requests for additional permissions still
-require confirmation, even if their apparent intent is to read data.
-A command missing from the request is never automatically accepted based on
-details from a previous command. File changes show the path and diff supplied
-by Codex. Missing or excessively long details cannot be approved in this
-prototype. The initial choice is **Decline**. The application does not reuse
-an earlier Cross button press to approve a new action.
-
-## Local toolbox
-
-The runtime includes the Dash shell, 83 sbase utilities and native `df`, `ps`,
-`sysctl` and `ps5-tools` commands. The `ps5-tools` catalog describes the installed
-set; Codex chooses commands according to the request.
-
-Tools cover files and links (`cp`, `mv`, `rm`, `find`, `ln`, `readlink`), editing
-and text (`ed`, `sed`, `grep`, `sponge`, `strings`), permissions (`chmod`, `chown`,
-`chgrp`), archives and checks (`tar`, `dd`, `cksum`, SHA checksums), capacity
-(`df`, `du`), processes (`ps`, `kill`, `nice`, `renice`) and system information
-(`uname`, `hostname`, `date`, `sysctl`). The source list is in
-`backend/runtime-tools.txt`. Options follow sbase rather than all GNU
-extensions; an unknown option should produce an error.
-Link creation also depends on the filesystem; it was denied in the console's
-internal test folder even though the command was available.
-
-`ps` queries the actual Prospero process list and displays PID/name.
-It does not expose arguments or CPU statistics. A kernel hook or a payload
-that exits after installing its hooks is not necessarily a process:
-its absence from `ps` does not prove that it is inactive.
-`sysctl` reads named properties; opaque values require `-b`.
-This toolbox does not yet provide the full FreeBSD userland: `curl`, `netstat`,
-`git`, Python and mounting/unmounting are not included.
-
-## File access and limitations
-
-Codex state and credentials: `/data/codex-ps5/home/.codex`.
-Initial working directory: `/data/codex-ps5/workspace`.
-The engine runs with the payload's permissions; there is **no system sandbox**.
-The Codex `untrusted` policy requests approval for actions not considered safe.
-The guidance about `/data`, `/mnt/usb*` and system files consists of model
-instructions, not restrictions enforced by the system.
-The local socket is unauthenticated: local applications with access to the
-console network must be trusted.
-
-This first prototype supports one active conversation with chronological
-messages, streaming responses, thinking/replying states and controller input.
-Up/down scrolls through session messages (64 recent messages, up to 1 MiB of
-text). Conversation resumption after closing, a file browser and a full diff
-view are not available yet. A disconnect stops the app-server for that session;
-an action already started may continue or may already have modified files.
-It is not rolled back. Prompts are never automatically resent.
-
-## Building
-
-Docker must run on a **remote Linux host**; workstation scripts synchronize
-sources and retrieve artifacts. Set `PS5_BUILD_HOST` (SSH alias) and
-`PS5_BUILD_DIRECTORY` for your build environment.
+## Build from source
 
 ```sh
 bash tools/test.sh
-# Optional, with Codex 0.160.0 installed on the workstation:
-python3 tests/app_server_handshake.py
 PS5_BUILD_HOST=build-host bash tools/build-remote.sh
 PS5_BUILD_HOST=build-host bash tools/build-backend-remote.sh
 python3 tools/fetch-model.py
 python3 tools/package.py
 ```
 
-The first engine build downloads the SDK and Rust, then compiles Codex;
-it takes substantially longer than building the interface. Allow several GB
-of RAM and enough disk space. The host must support `sudo -n docker` and have
-Python, Git, npm and rsync installed. The native builder uses the Linux image
-`opennow-ps5-builder:latest`; if missing, build it on the Linux host with
-`docker build -f tools/Dockerfile.native -t opennow-ps5-builder:latest .`.
+Docker builds run on a remote Linux host. Public release files are assembled
+under **`dist/release/`**, including `INSTALL.md`, licenses, release metadata,
+and `SHA256SUMS`. The legacy combined ZIP and `dist/bundle` remain available for
+Botty integrations. See [the technical reference](docs/REFERENCE.md#building)
+for prerequisites and [release preparation](docs/RELEASING.md) for maintainers.
 
-`upstream-lock.json` and the ps5-ai-cli lockfiles pin revisions. The Whisper
-model is downloaded separately and verified with SHA-256, then included by
-the packaging script. Model weights are not tracked in version control.
+## Credits
 
-## Attribution
-
-See `THIRD_PARTY.md`, `LICENSE`, `licenses/` and the licenses in the
-`vendor/ps5-ai-cli` snapshot. Source for the adaptations and build scripts
-is provided.
-
-## Updates through Botty+
-
-With Codex selected, LAUNCH installs and updates the native title, Whisper and
-the engine before starting it. Downloads are verified in 1 MiB blocks.
-The working directory and ChatGPT sign-in are preserved. Close native
-applications before LAUNCH; previous installations are kept as backups.
-The engine exposes a local control endpoint at 127.0.0.1:49323 for status
-and clean shutdown while idle. With the resident prototype backend, stop the
-companion and close the native app before updating; an active connection makes
-`POST /stop` return HTTP 409. The previous engine requires a full reboot
-after the first update.
+Built on [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli),
+[OpenNOW PS5](https://github.com/Portablelle/opennow-ps5), the Botty+ renderer,
+and [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
+See [THIRD_PARTY.md](THIRD_PARTY.md) and [LICENSE](LICENSE) for attribution and licenses.

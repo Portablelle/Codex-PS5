@@ -3,6 +3,9 @@
 #include <cassert>
 #include "../src/language.hpp"
 #include <iostream>
+#ifndef EXPECTED_CLIENT_VERSION
+#error "tools/test.sh passes the contents of VERSION as EXPECTED_CLIENT_VERSION"
+#endif
 using namespace assistant;
 int main(){
     const std::string runtimeShell="/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/sh";
@@ -35,6 +38,7 @@ int main(){
         assert(!readOnlyCommand(command));
     language::initialize(2);
     Protocol p;p.begin();assert(p.outgoing.size()==1);
+    assert(Json::parse(p.outgoing.front())["params"]["clientInfo"]["version"]==EXPECTED_CLIENT_VERSION);
     assert(p.ingest(R"({"id":1,"result":{}})"));assert(p.state.ready);
     assert(p.outgoing.size()==3);
     assert(p.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})"));

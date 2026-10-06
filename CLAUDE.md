@@ -2,8 +2,9 @@
 
 Native PS5 client for the Codex app-server (`src/`), the engine service it talks
 to (`backend/`), and an experimental in-game voice companion (`src/ingame.*`,
-`backend/ingame-service.cpp`, see `INGAME.md`). `README.md` describes the user-facing
-behavior; keep it and `INGAME.md` in sync with the code you change.
+`backend/ingame-service.cpp`, see `INGAME.md`). `README.md` is the public overview and
+`docs/REFERENCE.md` describes the detailed user-facing behavior; keep both, `INSTALL.md`
+and `INGAME.md` in sync with the code you change.
 
 ## Build and test
 
@@ -40,7 +41,7 @@ others, and keep code warning-free under `-Wall -Wextra`.
 
 ## Invariants to preserve
 
-- Approvals: only the recognized read-only commands listed in `README.md` are
+- Approvals: only the recognized read-only commands listed in `docs/REFERENCE.md` are
   auto-accepted, never for the whole session; everything else asks the user, with
   **Decline** as the default choice.
 - Gameplay mode (`src/ingame.cpp`) uses `read-only` / `never` and declines every
