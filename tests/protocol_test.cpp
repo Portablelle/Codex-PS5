@@ -1,5 +1,6 @@
 #include "../src/protocol.hpp"
 #include "../src/read_only_command.hpp"
+#include "../src/command_summary.hpp"
 #include <cassert>
 #include "../src/language.hpp"
 #include <iostream>
@@ -9,6 +10,106 @@
 using namespace assistant;
 int main(){
     const std::string runtimeShell="/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/sh";
+    // Approval summaries describe the command, including the one wrapped by the runtime shell.
+    assert(commandSummary("mv /data/notes.txt /data/archives/notes.txt")=="Moving a file");
+    assert(commandSummary("mv /data/a.txt /data/b.txt")=="Renaming a file");
+    assert(commandSummary(runtimeShell+" -lc 'mv /data/notes.txt /data/archives/'")=="Moving a file");
+    assert(commandSummary("/bin/bash -c \"mv a b c\"")=="Moving files");
+    assert(commandSummary("rm /data/a.txt")=="Deleting a file" && commandSummary("rm a b")=="Deleting files");
+    assert(commandSummary("rm -rf /data/old")=="Deleting folders and their contents");
+    assert(commandSummary("cp -R a b")=="Copying a folder" && commandSummary("mkdir -p /data/x")=="Creating a folder");
+    assert(commandSummary("sed -i s/a/b/ f")=="Editing a file" && commandSummary("sed s/a/b/ f")=="Transforming text");
+    assert(commandSummary("tar -czf out.tgz dir")=="Creating an archive" && commandSummary("tar xf a.tar")=="Extracting an archive");
+    assert(commandSummary("chmod +x run.sh")=="Making a file executable" && commandSummary("chown -R me dir")=="Changing ownership of a folder and its contents");
+    assert(commandSummary("cd /data && rm old.txt")=="Deleting a file" && commandSummary("cd /data")=="Changing directory");
+    assert(commandSummary("env LANG=C nice -n 5 rm x")=="Deleting a file" && commandSummary("FOO=1 python3 x.py")=="Running a script");
+    assert(commandSummary("find . -name '*.tmp' -delete")=="Finding and deleting files");
+    assert(commandSummary("find . -exec rm {} +")=="Finding files and running a command on them");
+    assert(commandSummary("sysctl kern.x=1")=="Changing system settings" && commandSummary("sysctl -n kern.ostype")=="Reading system information");
+    assert(commandSummary("date")=="Reading the date" && commandSummary("date 0101120026")=="Changing the system date");
+    assert(commandSummary("curl -O https://example.com/x")=="Downloading data from the network");
+    assert(commandSummary("grep -r x . 2>/dev/null")=="Searching text in files" && commandSummary("ls 2>&1")=="Listing files");
+    assert(commandSummary("./script.sh")=="Running a program" && commandSummary("sh install.sh")=="Running a shell script");
+    // Wrapper and shell options must not be mistaken for the wrapped command.
+    for(auto command:{"bash --rcfile ls -c 'rm -rf /data'","sudo -u ls rm -rf /data","sh -o ls -c ls"})
+        assert(commandSummary(command)=="Running a program");
+    assert(commandSummary("env -u ls rm -rf /data")=="Deleting folders and their contents");
+    assert(commandSummary("sh evil.sh -c ls")=="Running a shell script");
+    assert(commandSummary("env -i -u HOME rm a")=="Deleting a file" && commandSummary("sh -ec 'rm a'")=="Deleting a file");
+    // Quotes in a redirection target are not modelled either.
+    for(auto command:{"ls <\"a 'b\" ; rm -rf /data ; echo 'x <'","grep foo <\"in 'put\" && rm -rf /data && echo 'done <'",
+                      "cat >\"a 'b\" ; rm -rf /data ; echo 'x >'"})
+        assert(commandSummary(command)=="Running several commands");
+    // Changing PATH means a bare name no longer names the system tool.
+    for(auto command:{"PATH=/data/codex-ps5/workspace ls","PATH=.:/bin ls","env PATH=/tmp ls"})
+        assert(commandSummary(command)=="Running a program");
+    // Text tools that write files or run commands through their own options.
+    assert(commandSummary("sort -o /data/important f")=="Writing to a file" && commandSummary("sort f")=="Transforming text");
+    assert(commandSummary("sed 'w /data/out' f")=="Writing to a file" && commandSummary("sed -n 's/a/b/w out' f")=="Writing to a file");
+    assert(commandSummary("sed 's/a/b/e' f")=="Running a program" && commandSummary("sed -f edit.sed f")=="Running a script");
+    assert(commandSummary("sed 's/hello/world/' notes.txt")=="Transforming text" && commandSummary("sed -e 's/x/y/g' -i f")=="Editing a file");
+    assert(commandSummary("awk 'BEGIN{system(\"rm -rf /data\")}'")=="Running a script");
+    assert(commandSummary("awk '{print > \"/data/x\"}' f")=="Running a script");
+    // Grouped and attached options (getopt) are read like separate ones.
+    for(auto command:{"sed -ne 'w /data/x' -e p f","sed -e'w /data/out' f","sort -no /data/important f","sort -uo/data/important f"})
+        assert(commandSummary(command)=="Writing to a file");
+    assert(commandSummary("sed -nf x f")=="Running a script" && commandSummary("sed -fx f")=="Running a script");
+    assert(commandSummary("sed --expression='w /data/out' f")=="Running a program" && commandSummary("sed -n p f")=="Transforming text");
+    // sed scripts are read command by command: addresses and s/y operands are skipped.
+    for(auto command:{"sed -n '/error/p' log","sed '/^#/d' f","sed -n '1,5p' f","sed 's/write/exec/g' f","sed 'y/abc/xyz/' f","sed '$d' f"})
+        assert(commandSummary(command)=="Transforming text");
+    assert(commandSummary("sed '/x/w out' f")=="Writing to a file" && commandSummary("sed '1e echo hi' f")=="Running a program");
+    assert(commandSummary("sed 's/a/b/;w out' f")=="Writing to a file" && commandSummary("sed 's/a/b' f")=="Running a program");
+    // sbase ends r/R names and labels at ; or }, and l/q need no separator.
+    for(auto command:{"sed 'r x;w /data/important' f","sed '1{r x}w /data/important' f","sed 'l w /data/important' f","sed 'q w /data/important' f"})
+        assert(commandSummary(command)=="Writing to a file");
+    assert(commandSummary("sed '/[/s]/w /data/important;:]]' f")=="Running a program");
+    assert(commandSummary("sed -n '$p' f")=="Transforming text" && commandSummary("sed '10q' f")=="Transforming text");
+    // GNU-only forms: unknown short options, attached -i suffixes and abbreviated long options.
+    assert(commandSummary("sed -l 1 '1e echo PWNED' f")=="Running a program" && commandSummary("sed -i.e1 '1e echo' f")=="Running a program");
+    assert(commandSummary("sed -i.bak 's/a/b/' f")=="Editing a file");
+    assert(commandSummary("sort --out=/x f")=="Writing to a file" && commandSummary("sort --compress-prog=gzip f")=="Running a program");
+    // Variables that change which program or library runs.
+    for(auto command:{"LD_PRELOAD=/data/x.so ls","env LD_LIBRARY_PATH=/data ls","BASH_ENV=/data/x bash -c ls","DYLD_INSERT_LIBRARIES=x ls"})
+        assert(commandSummary(command)=="Running a program");
+    assert(commandSummary("LANG=C ls")=="Listing files");
+    // tar modes from any option form; mixed or extra modes stay generic.
+    assert(commandSummary("tar --extract -f a")=="Extracting an archive" && commandSummary("tar --create --file=a dir")=="Creating an archive");
+    assert(commandSummary("tar -f cx.tar -x")=="Extracting an archive" && commandSummary("tar -tvf a.tar")=="Listing an archive's contents");
+    assert(commandSummary("tar -cxf a")=="Working with an archive" && commandSummary("tar --to-command=sh -xf a")=="Running a program");
+    assert(commandSummary("tar -I zstd -xf a")=="Running a program");
+    assert(commandSummary("tar --to-c=sh -xf a")=="Running a program" && commandSummary("tar --use-c=./x -xf a")=="Running a program");
+    assert(commandSummary("tar --rs=/data/x -xf localhost:a")=="Running a program");
+    assert(commandSummary("TAR_OPTIONS=--to-command=sh tar -xf a")=="Running a program");
+    assert(commandSummary("env 'BASH_FUNC_ls%%=() { rm a; }' bash -c ls")=="Running a program");
+    assert(commandSummary("tar -rf a b")=="Working with an archive");
+    // A tool name is trusted only from system or bundled runtime directories.
+    assert(commandSummary("/bin/rm a")=="Deleting a file" && commandSummary("/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/ls")=="Listing files");
+    for(auto command:{"/data/codex-ps5/workspace/ls","./ls","bin/ls","/data/codex-ps5/runtime/tools-x/ls","/data/codex-ps5/workspace/sh -c 'ls'"})
+        assert(commandSummary(command)=="Running a program");
+    // A harmless-looking first command must not hide what follows it.
+    for(auto command:{"ls; rm -rf /data","ls && rm a","ls || rm a","cat a | sh","ls $(rm a)","ls `rm a`","ls &","cd /data; ls; rm a"})
+        assert(commandSummary(command)=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc 'ls; rm -rf /data'")=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc \"ls $(rm a)\"")=="Running several commands");
+    assert(commandSummary("echo hi > /data/a.txt")=="Writing to a file" && commandSummary("echo hi >>/data/a.txt")=="Writing to a file");
+    assert(commandSummary("ls ';' 'a|b'")=="Listing files" && commandSummary("ls '$(x)'")=="Running several commands");
+    // Escapes, comments and $'...' quoting are not modelled: a separator anywhere then counts.
+    for(auto command:{"grep \"a\\\"b\" f; rm -rf /data","ls #'\nrm -rf /data","ls $'a\\'b'; rm -rf /data","cat <(rm a)"})
+        assert(commandSummary(command)=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc 'grep \"a\\\"b\" f; rm -rf /data'")=="Running several commands");
+    // Globs, long options and combined flags never shrink what a command does.
+    assert(commandSummary("rm /data/*")=="Deleting files" && commandSummary("mv *.txt d/")=="Moving files");
+    assert(commandSummary("rm --recursive /data")=="Deleting folders and their contents" && commandSummary("cp -a src dst")=="Copying a folder");
+    assert(commandSummary("sed -Ei s/a/b/ f")=="Editing a file" && commandSummary("sed --in-place s/a/b/ f")=="Editing a file");
+    assert(commandSummary("").empty() && commandSummary("   ").empty() && commandSummary("ls 'open").empty());
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"add"}}])"))=="Creating a file");
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":"delete"},{"path":"/data/b","kind":"delete"}])"))=="Deleting files");
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"update","move_path":null}}])"))=="Editing a file");
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"update","move_path":"/data/b"}}])"))=="Renaming a file");
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"update","move_path":"/data/old/a"}}])"))=="Moving a file");
+    assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"add"}},{"path":"/data/b","diff":"x"}])"))=="Changing several files");
+    assert(fileChangeSummary(Json::array()).empty() && fileChangeSummary(Json()).empty());
     for(auto command:{"df", "'df -h'", "\"df -h /data\"", "\"cat '/data/my notes.txt'\""})
         assert(readOnlyCommand(runtimeShell+" -lc "+command));
     assert(readOnlyCommand(runtimeShell+" -c 'df -h'"));
@@ -65,11 +166,16 @@ int main(){
         const auto result=Json::parse(p.outgoing.back());
         assert(result["id"]=="wrapped-read" && result["result"]["decision"]=="accept");
     }
-    for(auto context:{R"({"kind":"stdin"})", R"({"additionalPermissions":{"fileSystem":{"write":["/data"]}}})",
-                      R"({"networkApprovalContext":{"host":"example.com"}})", R"({"grantRoot":"/data"})"}){
+    // Each kind of request gets its own summary line next to the command's.
+    const std::pair<const char*,const char*> contexts[]={
+        {R"({"kind":"stdin"})","Sending input to a running command"},
+        {R"({"additionalPermissions":{"fileSystem":{"write":["/data"]}}})","Checking storage space\nRequesting additional permissions"},
+        {R"({"networkApprovalContext":{"host":"example.com"}})","Checking storage space\nRequesting network access"},
+        {R"({"grantRoot":"/data"})","Checking storage space\nRequesting write access to a folder"}};
+    for(const auto& [context,summary]:contexts){
         auto params=Json::parse(context);params["command"]=runtimeShell+" -lc 'df -h'";
         assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","context"},{"params",params}}).dump()));
-        assert(p.state.approvals.size()==1);p.decide(false);
+        assert(p.state.approvals.size()==1 && p.state.approvals.front().summary==summary);p.decide(false);
     }
     assert(p.ingest(Json({{"method","item/commandExecution/requestApproval"},{"id","wrapped-write"},
                          {"params",{{"command",runtimeShell+" -lc 'rm /data/a'"}}}}).dump()));
@@ -79,14 +185,16 @@ int main(){
     assert(p.state.approvals.size()==1);p.decide(false);
     assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"commandExecution","id":"parent-command","command":"parent-script"}}})"));
     assert(p.ingest(R"({"method":"item/commandExecution/requestApproval","id":"approval-1","params":{"itemId":"parent-command","command":"mv a b"}})"));
-    assert(p.state.approvals.front().description=="mv a b");
+    assert(p.state.approvals.front().description=="mv a b" && p.state.approvals.front().summary=="Renaming a file");
     assert(p.state.approvals.size()==1);
     auto before=p.outgoing.size();p.decide(false);assert(p.outgoing.size()==before+1);
     auto reply=Json::parse(p.outgoing.back());assert(reply["id"]=="approval-1");assert(reply["result"]["decision"]=="decline");
-    assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"fileChange","id":"patch1","changes":[{"path":"/data/note.txt","diff":"-old\n+new"}]}}})"));
+    assert(p.ingest(R"({"method":"item/started","params":{"item":{"type":"fileChange","id":"patch1","changes":[{"path":"/data/note.txt","kind":{"type":"update","move_path":null},"diff":"-old\n+new"}]}}})"));
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":77,"params":{"itemId":"patch1","reason":"edit"}})"));
+    assert(p.state.approvals.front().summary=="Editing a file");
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["id"]==77 && reply["result"]["decision"]=="accept");
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":78,"params":{"itemId":"unknown"}})"));
+    assert(p.state.approvals.front().summary.empty());
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["result"]["decision"]=="decline");
     assert(p.ingest(R"({"method":"item/agentMessage/delta","params":{"delta":"Created — done."}})"));assert(p.state.response=="Created — done.");
     assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"failed","error":{"message":"permission denied"}}}})"));

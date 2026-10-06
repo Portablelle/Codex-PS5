@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "protocol.hpp"
 #include "read_only_command.hpp"
+#include "command_summary.hpp"
 #include "language.hpp"
 #include <algorithm>
 namespace assistant {
@@ -47,12 +48,12 @@ void Protocol::startThread(){
                     "Do not modify files, run console commands, or control the game.":instructions()}});
 }
 void Protocol::begin(){
-    pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
+    pending_.clear();items_.clear();changes_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){
-    pending_.clear();items_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
+    pending_.clear();items_.clear();changes_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
     state.approvals.clear();state.thread.clear();state.turn.clear();state.authenticated=false;interruptPending_=false;
     state.status="Engine disconnected. The request will not be resent.";++state.revision;
 }
@@ -126,6 +127,15 @@ bool Protocol::ingest(std::string_view line){
             std::string description=field(p,"command");
             if(description.empty() && cached!=items_.end())description=cached->second;
             const bool detailAvailable=!description.empty() && field(p,"kind")!="stdin";
+            // One plain-language line per aspect of the request, translated when drawn.
+            std::string summary;
+            const auto line=[&](std::string_view text){if(!text.empty()){if(!summary.empty())summary+='\n';summary+=text;}};
+            if(field(p,"kind")=="stdin")line("Sending input to a running command");
+            else if(method=="item/commandExecution/requestApproval")line(commandSummary(description));
+            else if(const auto change=changes_.find(field(p,"itemId"));change!=changes_.end())line(change->second);
+            if(hasContext("grantRoot"))line("Requesting write access to a folder");
+            if(hasContext("networkApprovalContext"))line("Requesting network access");
+            if(hasContext("additionalPermissions"))line("Requesting additional permissions");
             const auto cwd=field(p,"cwd"),reason=field(p,"reason"),root=field(p,"grantRoot");
             if(!cwd.empty())description+=language::tr("\nDirectory: ")+cwd;
             if(!root.empty())description+=language::tr("\nRequested root: ")+root;
@@ -133,7 +143,7 @@ bool Protocol::ingest(std::string_view line){
             if(p.contains("additionalPermissions") && !p["additionalPermissions"].is_null())description+=language::tr("\nPermissions: ")+p["additionalPermissions"].dump();
             const bool complete=detailAvailable && description.size()<=8192;
             if(!complete)description=language::tr("Details incomplete or too long: decline only.\n")+description;
-            state.approvals.push_back({*id,method,description.substr(0,8192),complete});
+            state.approvals.push_back({*id,method,description.substr(0,8192),complete,summary});
             state.status="Action awaiting approval";
         } else emit({{"id",*id},{"error",{{"code",-32601},{"message",language::tr("Interaction unsupported by the PS5 prototype")}}}});
     } else if(method.empty() && id!=j.end() && id->is_number_integer()) {
@@ -181,6 +191,10 @@ bool Protocol::ingest(std::string_view line){
                 if(details.size()>8192)break;
             }
         }
+        if(type=="fileChange" && !itemId.empty()){
+            if(changes_.size()>=64)changes_.erase(changes_.begin());
+            changes_[itemId]=std::string(fileChangeSummary(item.contains("changes")?item["changes"]:Json()));
+        }
         if(!itemId.empty() && !details.empty()){
             if(items_.size()>=64)items_.erase(items_.begin());
             items_[itemId]=details.substr(0,8193);
@@ -195,7 +209,7 @@ bool Protocol::ingest(std::string_view line){
         if(state.busy && state.approvals.empty())state.status="Codex is thinking...";
     } else if(method=="turn/started") {state.turn=field(object(p,"turn"),"id");state.busy=true;flushInterrupt();}
     else if(method=="turn/completed") {
-        state.busy=false;interruptPending_=false;state.turn.clear();state.approvals.clear();items_.clear();
+        state.busy=false;interruptPending_=false;state.turn.clear();state.approvals.clear();items_.clear();changes_.clear();
         const auto& turn=object(p,"turn");const auto status=field(turn,"status");
         state.turnStatus=status;
         state.status=status=="completed"?"Completed":status=="interrupted"?"Interrupted":"Failed: "+field(object(turn,"error"),"message");

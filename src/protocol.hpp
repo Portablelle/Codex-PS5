@@ -9,7 +9,7 @@
 namespace assistant {
 using Json=nlohmann::json;
 std::string field(const Json& value,const char* key);
-struct Approval {Json id;std::string method,description;bool reviewable=true;};
+struct Approval {Json id;std::string method,description;bool reviewable=true;std::string summary;};
 struct Message {bool user=false;std::string text,itemId;};
 struct State {
     bool connected=false,ready=false,busy=false,authenticated=false;
@@ -37,7 +37,7 @@ private:
     bool gameplay_=false;
     int next_=1;
     std::map<int,std::string> pending_;
-    std::map<std::string,std::string> items_;
+    std::map<std::string,std::string> items_,changes_;
     std::uint64_t turnSequence_=0;
     bool interruptPending_=false; // interrupt asked before the turn id was known
     void flushInterrupt();
