@@ -1,0 +1,39 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Socket and poll() behavior differs between the two hosts (see CLAUDE.md).
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run test suite
+        run: bash tools/test.sh
+
+  ps5-build:
+    # Self-hosted runner on the build VPS (label ps5-sdk), which has the PS5 SDK image.
+    # Not a required check: if the VPS is offline the job just stays queued.
+    # Never run fork PR code on the VPS (Docker access is root there).
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ps5-sdk]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: PS5 compile check (prospero-clang -Werror)
+        run: bash tools/ps5-compile-check.sh
