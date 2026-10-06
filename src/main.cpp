@@ -5,6 +5,7 @@
 #include "platform.hpp"
 #include "markdown.hpp"
 #include "language.hpp"
+#include "keyboard.hpp"
 #include <array>
 #include <algorithm>
 #include <vector>
@@ -29,7 +30,6 @@ constexpr auto bg=rgb(11,11,12),surface=rgb(21,21,23),raised=rgb(28,28,31),well=
 constexpr auto ink=rgb(242,239,233),soft=rgb(185,181,174),muted=rgb(142,139,133),dim=rgb(94,91,87);
 constexpr auto accent=rgb(255,176,32),codeInk=rgb(255,207,112),danger=rgb(229,72,77);
 constexpr unsigned left=96,right=1824,span=right-left;
-const std::array<std::string_view,50> keys={"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","0","1","2","3","4","5","6","7","8","9","/",".","_","-","space","delete","é","è","à","ç","?",":","shift","close"};
 void eraseCodepoint(std::string& s){if(s.empty())return;auto n=s.size()-1;while(n && (static_cast<unsigned char>(s[n])&0xc0)==0x80)--n;s.resize(n);}
 std::size_t codepoint(std::string_view s){std::size_t n=1;while(n<s.size() && (static_cast<unsigned char>(s[n])&0xc0)==0x80)++n;return n;}
 // Letter-spaced small caps labels.
@@ -220,10 +220,11 @@ void composerBox(Canvas& c,const assistant::State& state,const assistant::VoiceS
 }
 void keyboardPanel(Canvas& c,unsigned top){
     constexpr unsigned gap=10;
+    const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());
     for(unsigned i=0;i<keys.size();++i){
         // Integer columns that still end exactly on the right margin.
         const unsigned x=left+(i%10)*(span+gap)/10,width=left+(i%10+1)*(span+gap)/10-gap-x,y=top+(i/10)*74;
-        const bool special=i==40 || i==41 || i==48 || i==49,focused=i==key;
+        const bool special=keys[i]=="space" || keys[i]=="delete" || keys[i]=="shift" || keys[i]=="close",focused=i==key;
         const auto text=assistant::language::tr(keys[i]);const unsigned size=special?24:28;
         c.rounded(x,y,width,64,14,focused?accent:special?raised:surface);
         c.label(x+(width-c.text_width(text,size))/2,y+(special?17:14),text,size,focused?bg:special?soft:ink);
@@ -359,7 +360,9 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_CIRCLE){client.decide(false);approvalIdentity.clear();}
     } else {
         approvalIdentity.clear();
-        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working)assistant::language::toggle();
+        if((pressed&PS5_PAD_BUTTON_R1) && !state.busy && !mic.recording && !mic.working){
+            if(assistant::language::toggle())key=assistant::keyboard::follow(key,assistant::language::isFrench());
+        }
         if(pressed&PS5_PAD_BUTTON_L1)client.login();
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
@@ -368,14 +371,16 @@ bool draw(Canvas& c) noexcept {
             client.submit(composer);composer.clear();scroll=0;followConversation=true;
         }
         if(keyboard){
+            const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());
             if(pressed&PS5_PAD_BUTTON_LEFT)key=(key+49)%50;
             if(pressed&PS5_PAD_BUTTON_RIGHT)key=(key+1)%50;
             if(pressed&PS5_PAD_BUTTON_UP)key=(key+40)%50;
             if(pressed&PS5_PAD_BUTTON_DOWN)key=(key+10)%50;
             if(pressed&PS5_PAD_BUTTON_CROSS){
-                if(key==41)eraseCodepoint(composer);else if(key==49)keyboard=false;
-                else if(key==48){if(!composer.empty() && composer.back()>='a'&&composer.back()<='z')composer.back()-=32;}
-                else if(composer.size()+keys[key].size()<16384)composer+=(key==40?" ":keys[key]);
+                const auto selected=keys[key];
+                if(selected=="delete")eraseCodepoint(composer);else if(selected=="close")keyboard=false;
+                else if(selected=="shift"){if(!composer.empty() && composer.back()>='a'&&composer.back()<='z')composer.back()-=32;}
+                else if(composer.size()+selected.size()<16384)composer+=(selected=="space"?" ":selected);
             }
         } else {
             if(pressed&PS5_PAD_BUTTON_UP && scroll){--scroll;followConversation=false;}
