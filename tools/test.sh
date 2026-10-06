@@ -19,3 +19,4 @@ if [ "$(uname)" = Darwin ]; then
 fi
 bash tools/build-ingame-host.sh
 python3 tests/resident_service_test.py
+python3 tests/package_test.py

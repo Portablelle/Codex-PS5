@@ -14,7 +14,7 @@
   `examples/native-audio-poc/microphone/src/main.cpp`.
 * **whisper.cpp / ggml** — ggml-org and contributors, MIT.
   Version 1.8.3; license in `licenses/Whisper-MIT.txt`.
-  Multilingual Whisper `base` model, with provenance and checksum in the lockfile.
+  Multilingual Whisper `small` model quantized to Q5_1, with provenance and checksum in the lockfile.
 * **JSON for Modern C++** — Niels Lohmann and contributors, MIT.
   Version 3.12.0, attribution and license included in `vendor/json.hpp`.
 * **Manrope** — Mikhail Sharanda and contributors, SIL OFL 1.1.
