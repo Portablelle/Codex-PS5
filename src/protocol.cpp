@@ -223,9 +223,10 @@ bool Protocol::ingest(std::string_view line){
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
             if(requestMethod=="thread/start")state.threadFailed=true;
-            // A saved conversation that cannot be resumed is forgotten; a new one starts, without any prompt.
+            // A new conversation starts, without any prompt. The saved one is replaced only once
+            // a turn starts in the new thread, so a transient failure does not lose it.
             if(requestMethod=="thread/resume"){
-                resume_.clear();state.conversation.clear();startThread();
+                resume_.clear();startThread();
                 state.status="The previous conversation could not be resumed. A new one has started.";
             }
         } else {
@@ -240,7 +241,7 @@ bool Protocol::ingest(std::string_view line){
             } else if(requestMethod=="thread/resume"){
                 const auto& thread=object(r,"thread");state.thread=field(thread,"id");
                 if(!threadId(state.thread)){
-                    state.thread.clear();resume_.clear();state.conversation.clear();startThread();
+                    state.thread.clear();resume_.clear();startThread();
                     state.status="The previous conversation could not be resumed. A new one has started.";
                 } else {state.conversation=state.thread;restore(thread);state.status="Conversation resumed";}
             }

@@ -190,15 +190,24 @@ int main(){
         resume=Json::parse(f.outgoing.back());assert(resume["method"]=="thread/resume" && resume["params"]["threadId"]=="fresh");
     }
     {
-        // A conversation that cannot be resumed is forgotten and a new one starts, without a prompt.
+        // When a conversation cannot be resumed a new one starts, without a prompt; the saved
+        // one is kept until a turn starts in the new thread, so a failed fallback does not lose it.
         Protocol f;f.begin("missing");f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
         assert(f.ingest(R"({"id":3,"error":{"message":"no rollout found"}})"));
         auto start=Json::parse(f.outgoing.back());
         assert(start["method"]=="thread/start" && start["id"]==4 && start["params"]["allowProviderModelFallback"]==false);
-        assert(!start["params"].contains("threadId") && f.state.conversation.empty() && !f.state.threadFailed);
+        assert(!start["params"].contains("threadId") && f.state.conversation=="missing" && !f.state.threadFailed);
         assert(f.state.status=="The previous conversation could not be resumed. A new one has started.");
-        assert(f.ingest(R"({"id":4,"result":{"thread":{"id":"replacement"}}})"));
-        assert(f.state.thread=="replacement" && f.state.messages.empty() && f.state.status!="Ready" && f.outgoing.size()==5);
+        assert(f.ingest(R"({"id":4,"error":{"message":"model unavailable"}})"));
+        assert(f.state.threadFailed && f.state.conversation=="missing");
+        assert(f.retryThread() && Json::parse(f.outgoing.back())["method"]=="thread/start" && f.outgoing.size()==6);
+        assert(f.ingest(R"({"id":5,"result":{"thread":{"id":"replacement"}}})"));
+        assert(f.state.thread=="replacement" && f.state.messages.empty() && f.state.conversation=="missing" && f.outgoing.size()==6);
+        assert(f.submit("Hello") && f.ingest(R"({"id":6,"result":{"turn":{"id":"r1"}}})") && f.state.conversation=="replacement");
+        // A resume answered without a usable thread ID falls back the same way.
+        Protocol h;h.begin("kept");h.ingest(R"({"id":1,"result":{}})");h.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(h.ingest(R"({"id":3,"result":{"thread":{"id":"bad id"}}})") && h.state.thread.empty() && h.state.conversation=="kept");
+        assert(Json::parse(h.outgoing.back())["method"]=="thread/start");
         // A malformed saved ID, or the gameplay companion, never resumes anything.
         for(auto saved:{"../etc","bad id",""}){
             Protocol g;g.begin(saved);g.ingest(R"({"id":1,"result":{}})");g.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
