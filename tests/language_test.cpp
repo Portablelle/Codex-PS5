@@ -45,6 +45,8 @@ int main(){
     assert(language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation will resume at the next launch.")=="La dictee sera arretee et Codex sera deconnecte.\nCette conversation reprendra au prochain lancement.");
     assert(language::tr("Conversation resumed")=="Conversation reprise");
     assert(language::tr("The previous conversation could not be resumed. A new one has started.").starts_with("La conversation precedente n'a pas pu"));
+    assert(language::tr("A new conversation has started. The previous one could not be resumed: no rollout found")==
+           "Une nouvelle conversation a commence. La precedente n'a pas pu etre reprise : no rollout found");
     // Every approval summary is translated.
     assert(language::tr("Building code")=="Compilation de code");
     assert(language::tr("Changing a process priority")=="Modification de la priorité d'un processus");

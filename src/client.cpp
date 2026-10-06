@@ -3,7 +3,7 @@
 #include "platform.hpp"
 namespace assistant {
 namespace platform=botty::platform;
-bool Client::start(){saved_=platform::loadConversation();return platform::startWorker(run,this,&worker_);}
+bool Client::start(){saved_=platform::loadConversation();protocol_.state.conversation=saved_;return platform::startWorker(run,this,&worker_);}
 void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
@@ -22,7 +22,8 @@ void Client::loop(){
              if(protocol_.state.status!=status){protocol_.state.status=status;++protocol_.state.revision;}}
             platform::sleep(500000);continue;
         }
-        {std::lock_guard lock(mutex_);protocol_.begin(saved_);}
+                // The conversation in memory is the one to resume, even when it could not be written yet.
+        {std::lock_guard lock(mutex_);protocol_.begin(protocol_.state.conversation);}
         std::string incoming;bool valid=true;std::uint64_t quitDeadline=0;
         while(valid){
             std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;std::string conversation;
@@ -57,7 +58,10 @@ void Client::loop(){
             if(incoming.size()>1048576)valid=false;
         }
         platform::closeSocket(fd);
-        {std::lock_guard lock(mutex_);protocol_.disconnect();}
+        std::string conversation;
+        {std::lock_guard lock(mutex_);protocol_.disconnect();conversation=protocol_.state.conversation;}
+        // Lines read after the last pass may have changed it (a resume answered just before the connection ended).
+        if(conversation!=saved_ && platform::saveConversation(conversation))saved_=std::move(conversation);
         platform::sleep(500000);
     }
 }

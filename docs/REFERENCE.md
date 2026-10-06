@@ -205,8 +205,8 @@ been sent in it; only its ID is stored, in the title's own storage
 engine, the app resumes that thread with `thread/resume`, shows its stored
 prompts and replies, and reads **Conversation resumed**. Approval decisions,
 commands and file changes of earlier turns are not shown again. If Codex cannot
-resume it, the app starts a new conversation and says so in the status line; the
-new conversation replaces the remembered one once a prompt has been sent in it. To leave a conversation, enter `/new` and press Options while Codex is idle:
+resume it, the app starts a new conversation and says so in the status line, with
+the reason given by Codex; the new conversation replaces the remembered one once a prompt has been sent in it. To leave a conversation, enter `/new` and press Options while Codex is idle:
 the screen is cleared and a new conversation starts; the previous one stays in the
 Codex state but is no longer resumed. The in-game companion never resumes a
 conversation.

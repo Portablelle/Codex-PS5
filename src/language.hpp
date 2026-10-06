@@ -36,6 +36,7 @@ inline std::string tr(std::string_view english) {
         {"Starting a new conversation...","Démarrage d'une nouvelle conversation..."},
         {"Conversation resumed","Conversation reprise"},
         {"The previous conversation could not be resumed. A new one has started.","La conversation precedente n'a pas pu etre reprise. Une nouvelle a commence."},
+        {"A new conversation has started. The previous one could not be resumed: ","Une nouvelle conversation a commence. La precedente n'a pas pu etre reprise : "},
         {"Next action needs approval","Action suivante a confirmer"},
         {"\nDirectory: ","\nDossier : "},
         {"\nRequested root: ","\nRacine demandee : "},

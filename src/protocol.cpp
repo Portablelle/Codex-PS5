@@ -227,8 +227,9 @@ bool Protocol::ingest(std::string_view line){
             // A new conversation starts, without any prompt. The saved one is replaced only once
             // a turn starts in the new thread, so a transient failure does not lose it.
             if(requestMethod=="thread/resume"){
-                resume_.clear();startThread();
-                state.status="The previous conversation could not be resumed. A new one has started.";
+                const auto reason=field(object(j,"error"),"message");resume_.clear();startThread();
+                state.status=reason.empty()?"The previous conversation could not be resumed. A new one has started."
+                    :"A new conversation has started. The previous one could not be resumed: "+reason;
             }
         } else {
             const auto& r=object(j,"result");

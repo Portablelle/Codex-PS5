@@ -49,11 +49,12 @@ Json next(){ // next request from the client, skipping notifications
             auto j=Json::parse(buffered.substr(0,newline));buffered.erase(0,newline+1);
             if(j.contains("id"))return j;continue;
         }
+        pollfd p{engine,POLLIN,0};assert(poll(&p,1,10000)==1); // the client never stays silent that long
         char bytes[4096];const auto n=recv(engine,bytes,sizeof(bytes),0);assert(n>0);buffered.append(bytes,static_cast<std::size_t>(n));
     }
 }
-void reply(const Json& request,Json result){
-    const auto line=Json({{"id",request["id"]},{"result",std::move(result)}}).dump()+"\n";
+void reply(const Json& request,Json result,std::string_view after={}){
+    const auto line=Json({{"id",request["id"]},{"result",std::move(result)}}).dump()+"\n"+std::string(after);
     assert(::send(engine,line.data(),line.size(),0)==static_cast<ssize_t>(line.size()));
 }
 template<class Condition> void wait(Condition condition){
@@ -86,6 +87,21 @@ int main(){
     const auto done=Json({{"method","turn/completed"},{"params",{{"turn",{{"status","completed"}}}}}}).dump()+"\n";
     assert(::send(engine,done.data(),done.size(),0)>0);
     wait([&]{return !client.snapshot().busy;});
+    const auto reconnect=[&]{
+        auto request=next();assert(request["method"]=="initialize");reply(request,Json::object());
+        request=next();assert(request["method"]=="account/read");reply(request,{{"account",{{"type","chatgpt"}}}});
+        return next();
+    };
+    // A broken line ends the connection; the reconnection resumes the conversation, never a prompt.
+    const std::string broken="not json\n";assert(::send(engine,broken.data(),broken.size(),0)>0);
+    request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="fresh");
+    // A conversation changed by the last lines before the connection ends is still saved,
+    // and the next connection resumes it from memory even when that write failed.
+    failures=1;reply(request,{{"thread",{{"id","moved"},{"turns",Json::array()}}}},broken);
+    request=reconnect();assert(request["method"]=="thread/resume" && request["params"]["threadId"]=="moved");
+    wait([&]{std::lock_guard lock(storage);return stored=="moved";});
+    reply(request,{{"thread",{{"id","moved"},{"turns",Json::array()}}}});
+    wait([&]{return client.snapshot().thread=="moved";});
     client.stop();close(engine);close(app);
     std::cout<<"client tests passed\n";
 }

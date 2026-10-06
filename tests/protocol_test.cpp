@@ -196,7 +196,8 @@ int main(){
         auto start=Json::parse(f.outgoing.back());
         assert(start["method"]=="thread/start" && start["id"]==4 && start["params"]["allowProviderModelFallback"]==false);
         assert(!start["params"].contains("threadId") && f.state.conversation=="missing" && !f.state.threadFailed);
-        assert(f.state.status=="The previous conversation could not be resumed. A new one has started.");
+        // Codex's reason stays visible.
+        assert(f.state.status=="A new conversation has started. The previous one could not be resumed: no rollout found");
         assert(f.ingest(R"({"id":4,"error":{"message":"model unavailable"}})"));
         assert(f.state.threadFailed && f.state.conversation=="missing");
         assert(f.retryThread() && Json::parse(f.outgoing.back())["method"]=="thread/start" && f.outgoing.size()==6);
@@ -206,6 +207,7 @@ int main(){
         // A resume answered without a usable thread ID falls back the same way.
         Protocol h;h.begin("kept");h.ingest(R"({"id":1,"result":{}})");h.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
         assert(h.ingest(R"({"id":3,"result":{"thread":{"id":"bad id"}}})") && h.state.thread.empty() && h.state.conversation=="kept");
+        assert(h.state.status=="The previous conversation could not be resumed. A new one has started.");
         assert(Json::parse(h.outgoing.back())["method"]=="thread/start");
         // A malformed saved ID, or the gameplay companion, never resumes anything.
         for(auto saved:{"../etc","bad id",""}){
