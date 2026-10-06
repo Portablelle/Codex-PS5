@@ -21,7 +21,9 @@ FTP and existing ELF senders remain usable. The native platform's optional
    ```
 
    Use `PS5_BUILD_DIRECTORY` to isolate a release build from other work on that
-   host. The first Codex build needs several GB of RAM and disk space.
+   host. That directory mirrors the checkout, so it must be dedicated to these
+   builds: the scripts refuse a non-empty directory that is not already one.
+   The first Codex build needs several GB of RAM and disk space.
    Rebuild the backend if `backend`, `src`, or `tools` changes: the package checks
    its build identity against those inputs.
 3. Commit and push the release changes, then open the PR. Create a **draft

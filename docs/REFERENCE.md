@@ -179,7 +179,11 @@ It is not rolled back. Prompts are never automatically resent.
 
 Docker must run on a **remote Linux host**; workstation scripts synchronize
 sources and retrieve artifacts. Set `PS5_BUILD_HOST` (SSH alias) and
-`PS5_BUILD_DIRECTORY` for your build environment.
+`PS5_BUILD_DIRECTORY` for your build environment. `build-remote.sh` and
+`build-backend-remote.sh` mirror the checkout into `PS5_BUILD_DIRECTORY` and delete
+files that are no longer in it (except `.deps`, `build` and `dist`). Use a dedicated
+directory: they refuse a non-empty one that holds neither their
+`.codex-ps5-build` marker nor an earlier Codex PS5 checkout.
 
 ```sh
 bash tools/test.sh

@@ -121,20 +121,22 @@ class PackageTest(unittest.TestCase):
 class RemoteSyncTest(unittest.TestCase):
     """Run the build scripts with ssh and rsync redirected to local directories."""
 
-    def sync(self, script):
+    SCRIPTS = ('build-backend-remote.sh', 'build-remote.sh')
+
+    def sync(self, script, remote_files, code=3):
         real_rsync = shutil.which('rsync')
         self.assertIsNotNone(real_rsync, 'rsync is required by the remote build scripts')
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         base = Path(directory.name)
         local, remote, bin = base / 'local', base / 'remote', base / 'bin'
-        for path in (local / 'tools', local / 'src', bin, remote / 'src', remote / '.deps', remote / 'dist'):
+        for path in (local / 'tools', local / 'src', bin):
             path.mkdir(parents=True)
         shutil.copy2(ROOT / 'tools' / script, local / 'tools' / script)
         (local / 'src/current.cpp').write_text('current')
-        (remote / 'src/deleted.cpp').write_text('deleted locally since the last build')
-        (remote / '.deps/cache').write_text('cache')
-        (remote / 'dist/previous.elf').write_text('previous')
+        for name, text in remote_files.items():
+            (remote / name).parent.mkdir(parents=True, exist_ok=True)
+            (remote / name).write_text(text)
         # Run mkdir for real, stop before the build and the copy back.
         (bin / 'ssh').write_text('#!/bin/sh\nshift\nif [ $# -eq 1 ]; then\n'
                                  '  case "$1" in mkdir*) exec sh -c "$1";; *) exit 3;; esac\nfi\nexec "$@"\n')
@@ -144,17 +146,37 @@ class RemoteSyncTest(unittest.TestCase):
         result = subprocess.run(['bash', str(local / 'tools' / script)], capture_output=True, text=True,
                                 env={**os.environ, 'PATH': f'{bin}{os.pathsep}{os.environ["PATH"]}',
                                      'PS5_BUILD_HOST': 'fixture', 'PS5_BUILD_DIRECTORY': str(remote)})
-        self.assertEqual(result.returncode, 3, result.stderr)
-        self.assertEqual((remote / 'src/current.cpp').read_text(), 'current')
-        return remote
+        self.assertEqual(result.returncode, code, result.stderr)
+        if code == 3:
+            self.assertEqual((remote / 'src/current.cpp').read_text(), 'current')
+            self.assertTrue((remote / '.codex-ps5-build').exists())
+        return remote, result
 
     def test_remote_build_inputs_follow_local_deletions(self):
-        for script in ('build-backend-remote.sh', 'build-remote.sh'):
+        for script in self.SCRIPTS:
             with self.subTest(script=script):
-                remote = self.sync(script)
+                remote, _ = self.sync(script, {'.codex-ps5-build': '', 'src/deleted.cpp': 'deleted locally',
+                                               '.deps/cache': 'cache', 'dist/previous.elf': 'previous'})
                 self.assertFalse((remote / 'src/deleted.cpp').exists())
                 self.assertTrue((remote / '.deps/cache').exists())
                 self.assertTrue((remote / 'dist/previous.elf').exists())
+
+    def test_new_or_earlier_build_directory_is_accepted(self):
+        for script in self.SCRIPTS:
+            for files in ({}, {'tools/build-native.sh': 'earlier checkout', 'src/deleted.cpp': 'deleted locally'}):
+                with self.subTest(script=script, files=sorted(files)):
+                    remote, _ = self.sync(script, files)
+                    self.assertFalse((remote / 'src/deleted.cpp').exists())
+
+    def test_unrelated_directory_is_never_mirrored(self):
+        for script in self.SCRIPTS:
+            with self.subTest(script=script):
+                remote, result = self.sync(script, {'notes.txt': 'keep', '.ssh/id': 'key'}, code=7)
+                self.assertEqual((remote / 'notes.txt').read_text(), 'keep')
+                self.assertEqual((remote / '.ssh/id').read_text(), 'key')
+                self.assertFalse((remote / 'src').exists())
+                self.assertFalse((remote / '.codex-ps5-build').exists())
+                self.assertIn('not a Codex PS5 build directory', result.stderr)
 
 
 if __name__ == '__main__':
