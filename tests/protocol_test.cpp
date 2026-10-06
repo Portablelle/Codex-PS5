@@ -36,7 +36,15 @@ int main(){
     assert(commandSummary(runtimeShell+" -lc 'ls; rm -rf /data'")=="Running several commands");
     assert(commandSummary(runtimeShell+" -lc \"ls $(rm a)\"")=="Running several commands");
     assert(commandSummary("echo hi > /data/a.txt")=="Writing to a file" && commandSummary("echo hi >>/data/a.txt")=="Writing to a file");
-    assert(commandSummary("ls ';' '$(x)'")=="Listing files");
+    assert(commandSummary("ls ';' 'a|b'")=="Listing files" && commandSummary("ls '$(x)'")=="Running several commands");
+    // Escapes, comments and $'...' quoting are not modelled: a separator anywhere then counts.
+    for(auto command:{"grep \"a\\\"b\" f; rm -rf /data","ls #'\nrm -rf /data","ls $'a\\'b'; rm -rf /data","cat <(rm a)"})
+        assert(commandSummary(command)=="Running several commands");
+    assert(commandSummary(runtimeShell+" -lc 'grep \"a\\\"b\" f; rm -rf /data'")=="Running several commands");
+    // Globs, long options and combined flags never shrink what a command does.
+    assert(commandSummary("rm /data/*")=="Deleting files" && commandSummary("mv *.txt d/")=="Moving files");
+    assert(commandSummary("rm --recursive /data")=="Deleting folders and their contents" && commandSummary("cp -a src dst")=="Copying a folder");
+    assert(commandSummary("sed -Ei s/a/b/ f")=="Editing a file" && commandSummary("sed --in-place s/a/b/ f")=="Editing a file");
     assert(commandSummary("").empty() && commandSummary("   ").empty() && commandSummary("ls 'open").empty());
     assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":{"type":"add"}}])"))=="Creating a file");
     assert(fileChangeSummary(Json::parse(R"([{"path":"/data/a","kind":"delete"},{"path":"/data/b","kind":"delete"}])"))=="Deleting files");

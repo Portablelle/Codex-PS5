@@ -127,7 +127,9 @@ command). Command summaries cover the bundled toolbox and common programs, look
 through `sh -c`/`-lc` wrappers, `env`, `nice`, `nohup` and a leading `cd dir &&`,
 and fall back to "Running a program" for anything else. Commands joined with
 `;`, `&&`, `||`, `|`, `&` or command substitution are summarized as "Running
-several commands", and redirection to a file as "Writing to a file". The
+several commands", as is any command that combines one of these separators
+with a backslash, `#` or `$`, even inside quotes. Globs and recursive options use
+the plural or folder wording. Redirection to a file is "Writing to a file". The
 summary is only a reading aid: it never affects which commands are accepted, so
 always check the full command below it. The client automatically accepts recognized simple
 inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,

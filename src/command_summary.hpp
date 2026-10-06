@@ -29,15 +29,22 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
                 return depth<4?commandSummary(w[i+1],depth+1):"Running several commands";
         return w.size()>1?"Running a shell script":"Opening a shell";
     }
-    std::size_t operands=0;bool recursive=false,inPlace=false;
+    // Err towards the larger reading: a glob may expand to many files.
+    std::size_t operands=0;bool recursive=false,inPlace=false,glob=false;
     for(std::size_t i=1;i<w.size();++i){
-        if(w[i].size()>1 && w[i][0]=='-' && w[i][1]!='-'){
-            if(w[i].find_first_of("rR")!=std::string::npos)recursive=true;
-            if(w[i].starts_with("-i"))inPlace=true;
-        } else if(w[i]!="--")++operands;
+        if(w[i].starts_with("--")){
+            if(w[i]=="--recursive" || w[i]=="--archive")recursive=true;
+            if(w[i].starts_with("--in-place"))inPlace=true;
+        } else if(w[i].size()>1 && w[i][0]=='-'){
+            if(w[i].find_first_of(name=="cp"?"rRa":"rR")!=std::string::npos)recursive=true;
+            if(w[i].find('i')!=std::string::npos)inPlace=true;
+        } else {
+            ++operands;
+            if(w[i].find_first_of("*?[{")!=std::string::npos)glob=true;
+        }
     }
     const auto has=[&](std::string_view prefix){for(std::size_t i=1;i<w.size();++i)if(w[i].starts_with(prefix))return true;return false;};
-    const bool many=operands>2;
+    const bool many=operands>2 || glob;
     if(name=="mv"){
         if(many)return "Moving files";
         // Same folder on both sides is a rename; otherwise the file moves.
@@ -46,7 +53,7 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
         return paths.size()==2 && !paths[1].ends_with("/") && folder(paths[0])==folder(paths[1])?"Renaming a file":"Moving a file";
     }
     if(name=="cp")return recursive?"Copying a folder":many?"Copying files":"Copying a file";
-    if(name=="rm")return recursive?"Deleting folders and their contents":operands>1?"Deleting files":"Deleting a file";
+    if(name=="rm")return recursive?"Deleting folders and their contents":operands>1 || glob?"Deleting files":"Deleting a file";
     if(name=="unlink")return "Deleting a file";
     if(name=="rmdir")return "Deleting an empty folder";
     if(name=="mkdir")return "Creating a folder";
@@ -114,13 +121,19 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
 }
 }
 inline std::string_view commandSummary(std::string_view command,unsigned depth) {
-    // Split into simple commands; quoted text is literal except $( and ` inside double quotes.
+    // Without escapes, comments or substitutions, plain '…' and "…" quoting is
+    // modelled exactly. Otherwise any separator, even one that looks quoted, may
+    // start another command: do not try to second-guess the shell.
+    const auto contains=[&](std::string_view set){return command.find_first_of(set)!=std::string_view::npos;};
+    if(command.find("$(")!=std::string_view::npos || command.find("<(")!=std::string_view::npos ||
+       command.find(">(")!=std::string_view::npos || contains("`") || (contains(";|&\n") && contains("\\#$")))
+        return "Running several commands";
+    // Split into simple commands.
     std::vector<std::vector<std::string>> segments(1);
-    std::string word;char quote=0;bool started=false,substitution=false,writes=false,background=false;
+    std::string word;char quote=0;bool started=false,writes=false,background=false;
     const auto flush=[&]{if(started){segments.back().push_back(word);word.clear();started=false;}};
     for(std::size_t i=0;i<command.size();++i){
         const char c=command[i];
-        if(quote!='\'' && (c=='`' || (c=='$' && i+1<command.size() && command[i+1]=='(')))substitution=true;
         if(quote){if(c==quote)quote=0;else word+=c;continue;}
         if(c=='\'' || c=='"'){quote=c;started=true;continue;}
         if(c=='\\' && i+1<command.size()){word+=command[++i];started=true;continue;}
@@ -150,7 +163,7 @@ inline std::string_view commandSummary(std::string_view command,unsigned depth) 
     // "cd dir && command" is how Codex usually picks a directory: describe the command.
     std::vector<std::vector<std::string>> work;
     for(auto& s:segments)if(!s.empty() && !(s.front()=="cd" && s.size()<=2))work.push_back(std::move(s));
-    if(substitution || background || work.size()>1)return "Running several commands";
+    if(background || work.size()>1)return "Running several commands";
     if(work.empty())return "Changing directory";
     if(writes)return "Writing to a file";
     return summary_detail::simple(std::move(work.front()),depth);
