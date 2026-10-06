@@ -55,7 +55,10 @@ int main(){
         assert(failed.engineEvent(R"({"id":3,"error":{"message":"unavailable"}})",0));
         const auto count=failed.engine.outgoing.size();failed.trigger(0);
         assert(failed.status()=="Codex is not ready" && failed.actions.empty() && failed.engine.outgoing.size()==count+1);
-        assert(Json::parse(failed.engine.outgoing.back())["method"]=="thread/start");
+        const auto retry=Json::parse(failed.engine.outgoing.back());assert(retry["method"]=="thread/start");
+        // Once the retry succeeds, the status no longer claims Codex is not ready.
+        assert(failed.engineEvent(Json({{"id",retry["id"]},{"result",{{"thread",{{"id","retried"}}}}}}).dump(),0));
+        assert(failed.status()=="Idle" && failed.actions.empty());
     }
     for(const auto path:{"/", "relative", "/data/../system", "/data//captures", "/data/captures/"}){
         InGameSession invalid(path);ready(invalid);invalid.trigger(0);assert(invalid.actions.empty());

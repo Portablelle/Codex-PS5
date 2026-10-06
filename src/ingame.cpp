@@ -89,6 +89,9 @@ bool InGameSession::adapterEvent(const Json& event,std::uint64_t now){
     return false;
 }
 void InGameSession::syncEngine(std::uint64_t now){
+    // A retried (or late) thread/start clears the earlier "not ready" answer.
+    if(phase_==InGamePhase::idle && status_=="Codex is not ready" && engine.state.ready &&
+       engine.state.authenticated && !engine.state.thread.empty() && !engine.state.busy)status_="Idle";
     if(phase_!=InGamePhase::thinking && phase_!=InGamePhase::cancelling)return;
     if(engine.state.busy){
         if(phase_==InGamePhase::cancelling && !interruptSent_ && !engine.state.turn.empty()){
