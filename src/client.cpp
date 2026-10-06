@@ -4,7 +4,7 @@
 namespace assistant {
 namespace platform=botty::platform;
 bool Client::start(){return platform::startWorker(run,this,&worker_);}
-void Client::stop(){{std::lock_guard lock(mutex_);stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
+void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
 void Client::submit(std::string text){std::lock_guard lock(mutex_);protocol_.submit(text);}
@@ -24,8 +24,8 @@ void Client::loop(){
         {std::lock_guard lock(mutex_);protocol_.begin();}
         std::string incoming;bool valid=true;
         while(valid){
-            std::deque<std::string> queue;
-            {std::lock_guard lock(mutex_);if(stopping_)break;queue.swap(protocol_.outgoing);}
+            std::deque<std::string> queue;bool stopping=false;
+            {std::lock_guard lock(mutex_);stopping=stopping_;queue.swap(protocol_.outgoing);}
             for(const auto& line:queue){
                 std::size_t offset=0;
                 while(offset<line.size()){
@@ -34,7 +34,7 @@ void Client::loop(){
                 }
                 if(!valid)break;
             }
-            if(!valid)break;
+            if(!valid || stopping)break;
             char bytes[8192];int n=platform::receive(fd,bytes,sizeof(bytes));
             if(n==-2)continue; // timeout; lets pending UI actions reach the server
             if(n<=0)break;

@@ -17,6 +17,7 @@ namespace {
 using ps5::demo::Canvas;using ps5::demo::Color;
 assistant::Client client;assistant::Voice voice;
 std::string composer,composerNotice;int pad=-1;unsigned previous=0,key=0,scroll=0,approvalScroll=0;
+bool quitting=false,confirmQuit=false;
 bool keyboard=false,approve=false;std::string approvalIdentity;
 std::uint64_t uiRevision=0,lastProtocol=0;std::string lastMic;
 std::uint64_t nextPadRetry=0;
@@ -86,14 +87,30 @@ bool draw(Canvas& c) noexcept {
         if(n<0){scePadClose(pad);pad=-1;previous=0;}
         for(int i=0;i<n && i<static_cast<int>(records.size());++i){unsigned buttons=records[i].connected?records[i].buttons:0;pressed|=buttons&~previous;previous=buttons;}
     }
-    if(c.take_resumed()){pressed=0;approve=false;++uiRevision;}
+    if(c.take_resumed()){pressed=0;approve=false;confirmQuit=false;++uiRevision;}
     auto state=client.snapshot();auto mic=voice.snapshot();
     const auto text=voice.takeTranscript();if(!text.empty()){
         if(composer.size()+text.size()+1<=16384){if(!composer.empty())composer+=' ';composer+=text;composerNotice.clear();}
         else composerNotice=assistant::language::tr("Prompt too long: the new dictation was not added");
         keyboard=false;
     }
-    if(!state.approvals.empty()){
+    const auto commandStart=composer.find_first_not_of(" \t\r\n");
+    const auto commandEnd=composer.find_last_not_of(" \t\r\n");
+    const bool quitCommand=commandStart!=std::string::npos &&
+        composer.substr(commandStart,commandEnd-commandStart+1)=="/quit";
+    if(!quitting && ((pressed&PS5_PAD_BUTTON_TOUCH_PAD) ||
+        ((pressed&PS5_PAD_BUTTON_OPTIONS) && quitCommand))){
+        quitting=true;confirmQuit=false;pressed=0;++uiRevision;
+        if(quitCommand)composer.clear();
+    }
+    if(quitting){
+        if(pressed&(PS5_PAD_BUTTON_LEFT|PS5_PAD_BUTTON_RIGHT))confirmQuit=!confirmQuit;
+        if(pressed&PS5_PAD_BUTTON_CIRCLE)quitting=false;
+        else if(pressed&PS5_PAD_BUTTON_CROSS){
+            if(confirmQuit)return false;
+            quitting=false;
+        }
+    } else if(!state.approvals.empty()){
         const auto identity=state.approvals.front().id.dump();
         if(identity!=approvalIdentity){approvalIdentity=identity;approve=false;pressed=0;approvalScroll=0;}
         if(pressed&PS5_PAD_BUTTON_UP && approvalScroll)--approvalScroll;
@@ -160,17 +177,24 @@ bool draw(Canvas& c) noexcept {
     const unsigned promptY=keyboard?610:790;
     c.rounded(70,promptY,1780,155,20,card);lines(c,105,promptY+18,composer.empty()?assistant::language::tr("Your prompt..."):composer,1710,3);
     c.label(75,980,assistant::language::tr(composerNotice.empty()?mic.status:composerNotice),24,accent);
-    c.label(75,1020,assistant::language::tr("△: dictate   □: keyboard   ☰: send   \uE000: sign in   ○: cancel"),20,muted);
+    c.label(75,1020,assistant::language::tr("△: dictate   □: keyboard   ☰: send   \uE000: sign in   ○: cancel   Touchpad: quit"),20,muted);
     if(keyboard){
         for(unsigned i=0;i<keys.size();++i){unsigned x=75+(i%10)*177,y=780+(i/10)*35;
             if(i==key)c.rounded(x-3,y-1,167,32,6,rgb(39,91,71));c.label(x+5,y,assistant::language::tr(keys[i]),20,ink);}
     }
-    if(!state.approvals.empty()){
+    if(!quitting && !state.approvals.empty()){
         c.shade(190);c.rounded(190,200,1540,660,24,card);
         c.label(225,225,assistant::language::tr("Codex needs your approval"),32,accent);
         lines(c,225,295,state.approvals.front().description,1470,11,approvalScroll);
         c.label(225,730,approve?assistant::language::tr("  Decline          [ Allow ]"):assistant::language::tr("[ Decline ]          Allow"),32,ink);
         c.label(225,800,assistant::language::tr("↑/↓: read. ←/→: choose. ×: confirm. ○: decline."),24,muted);
+    }
+    if(quitting){
+        c.shade(190);c.rounded(290,330,1340,420,24,card);
+        c.label(325,365,assistant::language::tr("Quit Codex PS5?"),32,accent);
+        lines(c,325,435,assistant::language::tr("Dictation will stop and Codex will be disconnected.\nThis conversation cannot be resumed in the application."),1270,3);
+        c.label(325,595,assistant::language::tr(confirmQuit?"  Cancel          [ Quit ]":"[ Cancel ]          Quit"),32,ink);
+        c.label(325,685,assistant::language::tr("←/→: choose. ×: confirm. ○: cancel."),24,muted);
     }
     return true;
 }
@@ -183,6 +207,6 @@ int main(){
     assistant::language::initialize(botty::platform::systemLanguage());
     ps5::demo::load_font();client.start();
     ps5::demo::run(draw,"Codex PS5 native frontend");
-    voice.shutdown();client.stop();if(pad>=0)scePadClose(pad);
-    for(;;)botty::platform::sleep(1000000);
+    voice.cancel();client.stop();voice.shutdown();if(pad>=0)scePadClose(pad);
+    return 0;
 }

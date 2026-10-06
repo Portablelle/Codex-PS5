@@ -110,11 +110,20 @@ No new controller shortcut is enabled in the native application.
 | Triangle | Start / finish dictation |
 | Square | Open / close the controller keyboard |
 | Cross | Enter a key / confirm a choice |
-| Options | Send the prompt |
+| Options | Send the prompt (`/quit` opens the exit confirmation) |
+| Touchpad click | Open the exit confirmation |
 | L1 | Sign in to ChatGPT |
 | R1 | French / English, only on a French PS5 while idle |
 | Circle | Cancel dictation / interrupt Codex / decline an action |
 | Up / down | Scroll through the response while the keyboard is closed |
+
+To close the application, click the touchpad or enter `/quit` and press Options.
+The confirmation defaults to **Cancel**; select **Quit** with left/right and
+press Cross, or press Circle to go back. It is available even while disconnected
+or during dictation, a response or an approval request. Confirming stops dictation,
+declines pending approvals, requests interruption of the active turn and closes
+the connection before releasing application resources and exiting. An action
+already started is not rolled back; this prototype cannot resume the conversation.
 
 Approval requests for commands and file changes appear in a window with
 scrollable details. The client automatically accepts recognized simple

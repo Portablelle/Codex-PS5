@@ -59,7 +59,7 @@ int sceVideoOutSubmitFlip(std::int32_t,std::int32_t i,std::uint32_t,std::int64_t
     std::fclose(f);std::exit(0);
 }
 int scePadInit(){return 0;}int scePadOpen(int,int,int,void*){return 1;}int scePadClose(int){return 0;}
-int scePadRead(int,PS5_PadData* p,int){p[0]={};p[0].connected=1;p[0].buttons=std::getenv("PREVIEW_KEYBOARD")?PS5_PAD_BUTTON_SQUARE:0;return 1;}
+int scePadRead(int,PS5_PadData* p,int){p[0]={};p[0].connected=1;p[0].buttons=std::getenv("PREVIEW_QUIT")?PS5_PAD_BUTTON_TOUCH_PAD:(std::getenv("PREVIEW_KEYBOARD")?PS5_PAD_BUTTON_SQUARE:0);return 1;}
 int sceUserServiceInitialize(void*){return 0;}
 int sceUserServiceGetInitialUser(int* p){*p=1;return 0;}
 }
