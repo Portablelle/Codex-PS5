@@ -126,7 +126,8 @@ folder, network access, additional permissions, or input sent to a running
 command). Command summaries cover the bundled toolbox and common programs, look
 through `sh -c`/`-lc` wrappers, `env`, `nice`, `nohup` and a leading `cd dir &&`,
 and fall back to "Running a program" for anything else, including a tool name
-run from a path outside the system and bundled runtime directories. Commands joined with
+run from a path outside the system and bundled runtime directories, a command
+that changes `PATH`, and a wrapper or shell option the summary does not know. Commands joined with
 `;`, `&&`, `||`, `|`, `&` or command substitution are summarized as "Running
 several commands", as is any command that combines one of these separators
 with a backslash, `#` or `$`, even inside quotes. Globs and recursive options use

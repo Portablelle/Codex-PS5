@@ -13,7 +13,11 @@ std::string_view commandSummary(std::string_view command,unsigned depth=0);
 namespace summary_detail {
 inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     // Skip variable assignments and wrappers that only change how a command runs.
-    while(!w.empty() && w.front().find('=')!=std::string::npos && w.front().front()!='=' && w.front().front()!='-')w.erase(w.begin());
+    // A PATH change means a bare name no longer resolves to the system tool.
+    while(!w.empty() && w.front().find('=')!=std::string::npos && w.front().front()!='=' && w.front().front()!='-'){
+        if(w.front().starts_with("PATH="))return "Running a program";
+        w.erase(w.begin());
+    }
     if(w.empty())return "Setting a variable";
     // Only system and bundled runtime directories are trusted to hold the tool a
     // name suggests; any other path (./ls, /data/x/rm) is just some program.
@@ -28,16 +32,31 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
         name.erase(0,slash+1);
     }
     if(name=="env" || name=="nohup" || name=="time" || name=="setsid" || name=="sudo" || name=="nice" || name=="command" || name=="exec"){
+        // Only known options are skipped; any other one may take an argument
+        // that would otherwise be mistaken for the wrapped command.
         std::size_t i=1;
-        while(i<w.size() && (w[i].starts_with("-") || w[i].find('=')!=std::string::npos)){if(name=="nice" && w[i]=="-n")++i;++i;}
+        for(;i<w.size();++i){
+            const auto& o=w[i];
+            if(o=="--"){++i;break;}
+            if(name=="env" && o.find('=')!=std::string::npos && o.front()!='-'){if(o.starts_with("PATH="))return "Running a program";continue;}
+            if(!o.starts_with("-"))break;
+            if(name=="env" && o=="-i")continue;
+            if((name=="env" && o=="-u") || (name=="nice" && o=="-n")){++i;continue;}
+            if(name=="time" && o=="-p")continue;
+            return "Running a program";
+        }
         if(i>=w.size())return name=="env"?"Reading environment variables":"Running a program";
         return depth<4?simple(std::vector<std::string>(w.begin()+static_cast<std::ptrdiff_t>(i),w.end()),depth+1):"Running a program";
     }
     if(name=="sh" || name=="bash" || name=="dash" || name=="zsh" || name=="ash" || name=="ksh"){
-        for(std::size_t i=1;i+1<w.size();++i)
-            if(w[i].size()>1 && w[i][0]=='-' && w[i].find('c')!=std::string::npos)
-                return depth<4?commandSummary(w[i+1],depth+1):"Running several commands";
-        return w.size()>1?"Running a shell script":"Opening a shell";
+        // -c applies to the first operand after a leading run of plain short options.
+        bool command=false;std::size_t i=1;
+        for(;i<w.size() && w[i].size()>1 && w[i][0]=='-';++i){
+            if(w[i][1]=='-' || w[i].find_first_not_of("abcefhilmnuvx",1)!=std::string::npos)return "Running a program";
+            if(w[i].find('c')!=std::string::npos)command=true;
+        }
+        if(command)return i<w.size() && depth<4?commandSummary(w[i],depth+1):"Running a program";
+        return i<w.size()?"Running a shell script":"Opening a shell";
     }
     // Err towards the larger reading: a glob may expand to many files.
     std::size_t operands=0;bool recursive=false,inPlace=false,glob=false;
@@ -155,6 +174,8 @@ inline std::string_view commandSummary(std::string_view command,unsigned depth) 
             while(i+1<command.size() && (command[i+1]==' ' || command[i+1]=='\t'))++i;
             std::string target;
             while(i+1<command.size() && std::string_view(" \t\n;|&<>").find(command[i+1])==std::string_view::npos)target+=command[++i];
+            // The target scan does not model quotes: never guess past one.
+            if(target.find_first_of("'\"")!=std::string::npos)return "Running several commands";
             if(c=='>' && target!="/dev/null" && target.find_first_not_of("0123456789-")!=std::string::npos)writes=true;
             continue;
         }
