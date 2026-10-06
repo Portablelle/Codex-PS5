@@ -116,14 +116,20 @@ the connection before releasing application resources and exiting. An action
 already started is not rolled back; this prototype cannot resume the conversation.
 
 Approval requests for commands and file changes appear in a window with
-scrollable details. Above a command, a short summary describes common
-operations in plain language (for example "Moving a file" for `mv`, "Deleting
-folders and their contents" for `rm -r`), including commands wrapped in
-`sh -c`/`-lc`. Commands joined with `;`, `&&`, `|`, `&` or command substitution
-are summarized as "Running several commands", output redirection as "Writing
-to a file", and unrecognized programs get no summary. The summary is only a
-reading aid: it never affects which commands are accepted, so always check the
-full command below it. The client automatically accepts recognized simple
+scrollable details. Under the title, short plain-language lines describe the
+request: what the command does (for example "Moving a file" for `mv`,
+"Renaming a file" when both paths share a folder, "Deleting folders and their
+contents" for `rm -r`, "Extracting an archive" for `tar x`), what a file change
+does (creating, editing, deleting, moving or renaming files, from the change
+kinds supplied by Codex), and any extra access it asks for (write access to a
+folder, network access, additional permissions, or input sent to a running
+command). Command summaries cover the bundled toolbox and common programs, look
+through `sh -c`/`-lc` wrappers, `env`, `nice`, `nohup` and a leading `cd dir &&`,
+and fall back to "Running a program" for anything else. Commands joined with
+`;`, `&&`, `||`, `|`, `&` or command substitution are summarized as "Running
+several commands", and redirection to a file as "Writing to a file". The
+summary is only a reading aid: it never affects which commands are accepted, so
+always check the full command below it. The client automatically accepts recognized simple
 inspection commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `du`, `df`, `ps`,
 `pwd`, `uname`, `whoami`, `readlink`, `ps5-tools` and named property reads with
 `sysctl`. This acceptance applies only to the requested command, never to the

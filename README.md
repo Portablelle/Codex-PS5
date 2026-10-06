@@ -27,8 +27,9 @@ interface previews, not photographs or console captures. Storage values are samp
 - **Dictate with your controller.** Press △ to record and again to transcribe.
   Review the text, then press Options to send it.
 - **Review actions on your TV.** Commands and file changes that need your
-  approval appear with their details and, for common commands, a plain-language
-  summary such as "Moving a file". Decline is selected by default.
+  approval appear with their details and a plain-language summary such as
+  "Moving a file", "Editing files" or "Requesting network access". Decline is
+  selected by default.
 - **Use English or French.** The app follows the console language, with QWERTY
   in English and AZERTY in French. On a French console, R1 switches the interface
   language while idle without changing your conversation.

@@ -37,7 +37,7 @@ private:
     bool gameplay_=false;
     int next_=1;
     std::map<int,std::string> pending_;
-    std::map<std::string,std::string> items_;
+    std::map<std::string,std::string> items_,changes_;
     std::uint64_t turnSequence_=0;
     bool interruptPending_=false; // interrupt asked before the turn id was known
     void flushInterrupt();

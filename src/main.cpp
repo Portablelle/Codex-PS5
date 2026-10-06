@@ -255,12 +255,15 @@ void sheetHints(Canvas& c,unsigned x,unsigned y,bool scrollable,bool choosable=t
     if(choosable)hint(c,x,y,"←→",choose,muted);
     hint(c,x,y,"×",confirm,muted);
 }
+unsigned summaryHeight(const std::string& summary){
+    return summary.empty()?0:8+44*static_cast<unsigned>(1+std::count(summary.begin(),summary.end(),'\n'));
+}
 void approvalSheet(Canvas& c,const assistant::Approval& approval){
     constexpr unsigned width=1120,inner=width-128,visible=9;
     const auto rows=wrap(c,approval.description,inner-64,24);
     const unsigned shown=std::min<unsigned>(static_cast<unsigned>(rows.size()),visible);
     approvalScroll=std::min(approvalScroll,rows.size()>visible?static_cast<unsigned>(rows.size()-visible):0U);
-    const unsigned block=56+shown*36,height=404+block+(approval.summary.empty()?0:52);
+    const unsigned block=56+shown*36,height=404+block+summaryHeight(approval.summary);
     const unsigned x=(1920-width)/2,y=(1080-height)/2;
     c.shade(184);c.rounded(x,y,width,height,32,edge);c.rounded(x+1,y+1,width-2,height-2,31,surface);
     unsigned cy=y+56;const unsigned cx=x+64;
@@ -268,7 +271,11 @@ void approvalSheet(Canvas& c,const assistant::Approval& approval){
     const auto title=approval.method=="item/commandExecution/requestApproval"?"Codex wants to run a command":
         approval.method=="item/fileChange/requestApproval"?"Codex wants to change files":"Codex needs your approval";
     c.label(cx,cy,assistant::language::tr(title),44,ink);cy+=68;
-    if(!approval.summary.empty()){c.label(cx,cy,assistant::language::tr(approval.summary),32,soft);cy+=52;}
+    for(std::size_t start=0;start<approval.summary.size();){
+        const auto end=std::min(approval.summary.find('\n',start),approval.summary.size());
+        c.label(cx,cy,assistant::language::tr(std::string_view(approval.summary).substr(start,end-start)),32,soft);cy+=44;start=end+1;
+    }
+    if(!approval.summary.empty())cy+=8;
     c.label(cx,cy,assistant::language::tr(approval.reviewable?"Review it carefully. Nothing runs unless you choose Allow.":"Details are incomplete: this action can only be declined."),24,approval.reviewable?muted:danger);cy+=72;
     c.rounded(cx,cy,inner,block,20,well);c.rounded(cx+1,cy+1,inner-2,block-2,19,bg);
     for(unsigned i=0;i<shown;++i){
