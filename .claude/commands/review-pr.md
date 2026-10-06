@@ -46,9 +46,11 @@ actually proves the fix:
 2. Rerun the test and confirm it fails.
 3. Restore the files (`git checkout HEAD -- <files>`).
 
-macOS results come from the `Tests` workflow
-(`gh run list --commit <head sha> --workflow tests.yml --json conclusion,status,url`).
-If it has not finished, say it is pending. Do not wait for it.
+macOS and PS5 compile results (`test (macos-latest)` and `ps5-build` jobs) come from the
+`Tests` workflow: find the run with
+`gh run list --commit <head sha> --workflow tests.yml --json databaseId,status,conclusion`,
+then `gh run view <id> --json jobs`. If a job has not finished, say it is pending.
+Do not wait for it. A failed `ps5-build` is a 🔴 finding when the PR caused it.
 
 ## 3. Look for real problems
 
@@ -102,7 +104,7 @@ Format (concise, no filler):
 <!-- claude-review sha=<head sha> -->
 ## Claude review: <🔴 changes needed | 🟡 should fix before merge | ✅ no issues found>
 
-Reviewed <full PR | commits <old sha7>..<new sha7>> · tests: <Linux pass/fail · macOS pass/fail/pending>
+Reviewed <full PR | commits <old sha7>..<new sha7>> · tests: <Linux pass/fail · macOS pass/fail/pending · PS5 build pass/fail/pending>
 
 | ID | Severity | Location | Finding | Status |
 |----|----------|----------|---------|--------|
