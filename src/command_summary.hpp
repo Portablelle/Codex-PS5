@@ -15,8 +15,18 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
     // Skip variable assignments and wrappers that only change how a command runs.
     while(!w.empty() && w.front().find('=')!=std::string::npos && w.front().front()!='=' && w.front().front()!='-')w.erase(w.begin());
     if(w.empty())return "Setting a variable";
+    // Only system and bundled runtime directories are trusted to hold the tool a
+    // name suggests; any other path (./ls, /data/x/rm) is just some program.
     auto name=w.front();
-    if(const auto slash=name.rfind('/');slash!=std::string::npos && slash+1<name.size())name.erase(0,slash+1);
+    if(const auto slash=name.rfind('/');slash!=std::string::npos){
+        const auto folder=std::string_view(name).substr(0,slash+1);
+        constexpr std::string_view runtime="/data/codex-ps5/runtime/tools-";
+        const bool bundled=folder.size()==runtime.size()+33 && folder.starts_with(runtime) &&
+            folder.substr(runtime.size(),32).find_first_not_of("0123456789abcdef")==std::string_view::npos;
+        if(!bundled && folder!="/bin/" && folder!="/usr/bin/" && folder!="/sbin/" && folder!="/usr/sbin/" && folder!="/usr/local/bin/")
+            return "Running a program";
+        name.erase(0,slash+1);
+    }
     if(name=="env" || name=="nohup" || name=="time" || name=="setsid" || name=="sudo" || name=="nice" || name=="command" || name=="exec"){
         std::size_t i=1;
         while(i<w.size() && (w[i].starts_with("-") || w[i].find('=')!=std::string::npos)){if(name=="nice" && w[i]=="-n")++i;++i;}

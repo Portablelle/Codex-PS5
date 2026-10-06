@@ -30,6 +30,10 @@ int main(){
     assert(commandSummary("curl -O https://example.com/x")=="Downloading data from the network");
     assert(commandSummary("grep -r x . 2>/dev/null")=="Searching text in files" && commandSummary("ls 2>&1")=="Listing files");
     assert(commandSummary("./script.sh")=="Running a program" && commandSummary("sh install.sh")=="Running a shell script");
+    // A tool name is trusted only from system or bundled runtime directories.
+    assert(commandSummary("/bin/rm a")=="Deleting a file" && commandSummary("/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/ls")=="Listing files");
+    for(auto command:{"/data/codex-ps5/workspace/ls","./ls","bin/ls","/data/codex-ps5/runtime/tools-x/ls","/data/codex-ps5/workspace/sh -c 'ls'"})
+        assert(commandSummary(command)=="Running a program");
     // A harmless-looking first command must not hide what follows it.
     for(auto command:{"ls; rm -rf /data","ls && rm a","ls || rm a","cat a | sh","ls $(rm a)","ls `rm a`","ls &","cd /data; ls; rm a"})
         assert(commandSummary(command)=="Running several commands");
