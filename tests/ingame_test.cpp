@@ -48,6 +48,18 @@ int main(){
     assert(unavailable.status()=="In-game platform adapter unavailable");
     unavailable.capabilities({true,true,true,true});unavailable.trigger(0);
     assert(unavailable.status()=="Codex is not ready");
+    {
+        // The in-game shortcut also retries a failed thread/start.
+        InGameSession failed;failed.capabilities({true,true,true,true});failed.engine.begin();
+        failed.engineEvent(R"({"id":1,"result":{}})",0);failed.engineEvent(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})",0);
+        assert(failed.engineEvent(R"({"id":3,"error":{"message":"unavailable"}})",0));
+        const auto count=failed.engine.outgoing.size();failed.trigger(0);
+        assert(failed.status()=="Codex is not ready" && failed.actions.empty() && failed.engine.outgoing.size()==count+1);
+        const auto retry=Json::parse(failed.engine.outgoing.back());assert(retry["method"]=="thread/start");
+        // Once the retry succeeds, the status no longer claims Codex is not ready.
+        assert(failed.engineEvent(Json({{"id",retry["id"]},{"result",{{"thread",{{"id","retried"}}}}}}).dump(),0));
+        assert(failed.status()=="Idle" && failed.actions.empty());
+    }
     for(const auto path:{"/", "relative", "/data/../system", "/data//captures", "/data/captures/"}){
         InGameSession invalid(path);ready(invalid);invalid.trigger(0);assert(invalid.actions.empty());
     }

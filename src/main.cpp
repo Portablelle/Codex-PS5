@@ -212,8 +212,10 @@ void composerBox(Canvas& c,const assistant::State& state,const assistant::VoiceS
         if(!empty && text.back()=='\n'){caretX=left+36;caretY+=42;}
         if(caretY+34<bottom)c.rectangle(caretX,caretY+4,3,34,accent);
     }
-    const bool ready=!mic.recording && !mic.working && !state.busy && state.ready && !state.thread.empty() && !empty;
-    const auto label=assistant::language::tr("Send");
+    // After a failed thread/start, Options starts a new attempt: say so on the button.
+    const bool retry=state.threadFailed && state.thread.empty();
+    const bool ready=!mic.recording && !mic.working && !state.busy && state.ready && (!state.thread.empty() || retry) && !empty;
+    const auto label=assistant::language::tr(retry?"Retry":"Send");
     const unsigned width=c.text_width("☰",24)+14+c.text_width(label,24)+48,x=right-30-width,y=top+(height-60)/2;
     c.rounded(x,y,width,60,18,ready?accent:well);
     c.label(x+20,y+15,"☰",24,ready?bg:dim);c.label(x+34+c.text_width("☰",24),y+14,label,24,ready?bg:dim);
@@ -375,8 +377,9 @@ bool draw(Canvas& c) noexcept {
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
         if(pressed&PS5_PAD_BUTTON_SQUARE)keyboard=!keyboard;
-        if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !state.thread.empty() && !composer.empty()){
-            client.submit(composer);composer.clear();scroll=0;followConversation=true;
+        // Without a conversation (thread/start failed), Options retries it and keeps the prompt.
+        if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !composer.empty()){
+            if(client.submit(composer)){composer.clear();scroll=0;followConversation=true;}
         }
         if(keyboard){
             const auto& keys=assistant::keyboard::layout(assistant::language::isFrench());

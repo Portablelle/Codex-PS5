@@ -47,6 +47,13 @@ void Protocol::startThread(){
                     "if the game or situation cannot be identified. Never invent what the image shows. "
                     "Do not modify files, run console commands, or control the game.":instructions()}});
 }
+// After a failed thread/start, a new attempt starts only when the user asks for one.
+bool Protocol::retryThread(){
+    if(!state.ready || !state.authenticated || !state.thread.empty())return false;
+    for(const auto& item:pending_)if(item.second=="thread/start")return false;
+    startThread();state.threadFailed=false;state.status="Starting a new conversation...";++state.revision;
+    return true;
+}
 void Protocol::begin(){
     pending_.clear();items_.clear();changes_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
@@ -63,6 +70,7 @@ void Protocol::login(){
     request("account/login/start",{{"type","chatgptDeviceCode"}});
 }
 bool Protocol::submit(std::string_view text,std::string_view imagePath){
+    if(state.thread.empty()){retryThread();return false;}
     if(!state.ready || state.busy || state.thread.empty() || text.empty() || text.size()>16384)return false;
     if(!imagePath.empty() && (imagePath.front()!='/' || imagePath.size()>1024 || imagePath.find('\0')!=std::string_view::npos))return false;
     state.busy=true;interruptPending_=false;state.response.clear();state.status="Codex is thinking...";
@@ -154,13 +162,17 @@ bool Protocol::ingest(std::string_view line){
         if(j.contains("error")) {
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
+            if(requestMethod=="thread/start")state.threadFailed=true;
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {
                 emit({{"method","initialized"}});state.ready=true;
                 request("account/read",{{"refreshToken",false}});
 
-            } else if(requestMethod=="thread/start")state.thread=field(object(r,"thread"),"id");
+            } else if(requestMethod=="thread/start"){
+                state.thread=field(object(r,"thread"),"id");
+                if(state.status=="Starting a new conversation...")state.status="Ready";
+            }
             else if(requestMethod=="turn/start"){state.turn=field(object(r,"turn"),"id");flushInterrupt();}
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");

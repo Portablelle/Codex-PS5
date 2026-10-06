@@ -137,6 +137,21 @@ int main(){
                       "cat 'unfinished", "sysctl kern.hostname=x", "sysctl -w kern.hostname",
                       "sysctl", "sysctl -n", "cat /data/a\r"})
         assert(!readOnlyCommand(command));
+    {
+        // A failed thread/start is retried when the user sends, never automatically,
+        // and the prompt is not sent until the new conversation exists.
+        Protocol f;f.begin();f.ingest(R"({"id":1,"result":{}})");f.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        assert(f.ingest(R"({"id":3,"error":{"message":"model unavailable"}})"));
+        assert(f.state.thread.empty() && f.state.threadFailed && f.state.status=="Error: model unavailable");
+        auto count=f.outgoing.size();
+        assert(!f.submit("Hello") && f.outgoing.size()==count+1 && !f.state.busy && f.state.messages.empty());
+        auto retry=Json::parse(f.outgoing.back());assert(retry["method"]=="thread/start" && retry["id"]==4);
+        assert(f.state.status=="Starting a new conversation..." && !f.state.threadFailed);
+        assert(!f.submit("Hello") && f.outgoing.size()==count+1); // one attempt at a time
+        assert(f.ingest(R"({"id":4,"result":{"thread":{"id":"retried"}}})"));
+        assert(f.state.thread=="retried" && f.state.status=="Ready" && f.outgoing.size()==count+1);
+        assert(f.submit("Hello") && f.state.busy);
+    }
     language::initialize(2);
     Protocol p;p.begin();assert(p.outgoing.size()==1);
     assert(Json::parse(p.outgoing.front())["params"]["clientInfo"]["version"]==EXPECTED_CLIENT_VERSION);
