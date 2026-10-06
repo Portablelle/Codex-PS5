@@ -38,6 +38,9 @@ jobs:
         with:
           # Full history: compare with the base and check tests against pre-fix code
           fetch-depth: 0
+          # checkout@v6 keeps the read-only GITHUB_TOKEN in an includeIf credentials file
+          # the action doesn't clear; it overrides the app token and pushes fail with 403.
+          persist-credentials: false
 
       - name: Run Claude Code
         id: claude
