@@ -11,10 +11,10 @@ on:
     types: [submitted]
 
 # Queue @claude requests on the same issue/PR so two runs never push to one branch
-# at once. Events without a mention get their own group, so they can't displace a
-# queued request.
+# at once. Bot events and events without a mention get their own group, so they
+# can't displace a queued request.
 concurrency:
-  group: ${{ contains(github.event.comment.body || github.event.review.body || format('{0} {1}', github.event.issue.title, github.event.issue.body), '@claude') && format('claude-{0}', github.event.issue.number || github.event.pull_request.number) || format('claude-skip-{0}', github.run_id) }}
+  group: ${{ github.event.sender.type != 'Bot' && contains(github.event.comment.body || github.event.review.body || format('{0} {1}', github.event.issue.title, github.event.issue.body), '@claude') && format('claude-{0}', github.event.issue.number || github.event.pull_request.number) || format('claude-skip-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
