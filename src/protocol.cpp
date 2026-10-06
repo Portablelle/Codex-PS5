@@ -47,13 +47,13 @@ void Protocol::startThread(){
                     "Do not modify files, run console commands, or control the game.":instructions()}});
 }
 void Protocol::begin(){
-    pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;
+    pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.2"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){
     pending_.clear();items_.clear();outgoing.clear();state.connected=state.ready=state.busy=false;
-    state.approvals.clear();state.thread.clear();state.turn.clear();
+    state.approvals.clear();state.thread.clear();state.turn.clear();state.authenticated=false;interruptPending_=false;
     state.status="Engine disconnected. The request will not be resent.";++state.revision;
 }
 void Protocol::login(){
@@ -64,7 +64,7 @@ void Protocol::login(){
 bool Protocol::submit(std::string_view text,std::string_view imagePath){
     if(!state.ready || state.busy || state.thread.empty() || text.empty() || text.size()>16384)return false;
     if(!imagePath.empty() && (imagePath.front()!='/' || imagePath.size()>1024 || imagePath.find('\0')!=std::string_view::npos))return false;
-    state.busy=true;state.response.clear();state.status="Codex is thinking...";
+    state.busy=true;interruptPending_=false;state.response.clear();state.status="Codex is thinking...";
     state.turnStatus.clear();
     ++turnSequence_;
     state.messages.push_back({true,std::string(text),{}});++state.chatRevision;
@@ -88,7 +88,13 @@ void Protocol::agentMessage(std::string id,std::string text,bool append){
     }
     ++state.chatRevision;
 }
-void Protocol::interrupt(){if(state.busy && !state.turn.empty())request("turn/interrupt",{{"threadId",state.thread},{"turnId",state.turn}});}
+void Protocol::interrupt(){
+    if(!state.busy)return;
+    if(state.turn.empty()){interruptPending_=true;return;} // sent as soon as the turn id is known
+    interruptPending_=false;
+    request("turn/interrupt",{{"threadId",state.thread},{"turnId",state.turn}});
+}
+void Protocol::flushInterrupt(){if(interruptPending_ && state.busy && !state.turn.empty())interrupt();}
 void Protocol::decide(bool accept){
     if(state.approvals.empty())return;
     auto a=state.approvals.front();state.approvals.pop_front();
@@ -137,7 +143,7 @@ bool Protocol::ingest(std::string_view line){
         const auto requestMethod=it->second;pending_.erase(it);
         if(j.contains("error")) {
             state.status="Error: "+field(object(j,"error"),"message");
-            if(requestMethod=="turn/start")state.busy=false;
+            if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
         } else {
             const auto& r=object(j,"result");
             if(requestMethod=="initialize") {
@@ -145,7 +151,7 @@ bool Protocol::ingest(std::string_view line){
                 request("account/read",{{"refreshToken",false}});
 
             } else if(requestMethod=="thread/start")state.thread=field(object(r,"thread"),"id");
-            else if(requestMethod=="turn/start")state.turn=field(object(r,"turn"),"id");
+            else if(requestMethod=="turn/start"){state.turn=field(object(r,"turn"),"id");flushInterrupt();}
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");
                 state.status="Sign in on your phone using the displayed code.";
@@ -187,9 +193,9 @@ bool Protocol::ingest(std::string_view line){
         if(state.approvals.empty())state.status="Codex is replying...";
     } else if(method=="item/reasoning/textDelta" || method=="item/reasoning/summaryTextDelta" || method=="item/reasoning/summaryPartAdded"){
         if(state.busy && state.approvals.empty())state.status="Codex is thinking...";
-    } else if(method=="turn/started") {state.turn=field(object(p,"turn"),"id");state.busy=true;}
+    } else if(method=="turn/started") {state.turn=field(object(p,"turn"),"id");state.busy=true;flushInterrupt();}
     else if(method=="turn/completed") {
-        state.busy=false;state.turn.clear();state.approvals.clear();items_.clear();
+        state.busy=false;interruptPending_=false;state.turn.clear();state.approvals.clear();items_.clear();
         const auto& turn=object(p,"turn");const auto status=field(turn,"status");
         state.turnStatus=status;
         state.status=status=="completed"?"Completed":status=="interrupted"?"Interrupted":"Failed: "+field(object(turn,"error"),"message");

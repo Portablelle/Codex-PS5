@@ -11,7 +11,7 @@ Two components run **on the PS5**:
 
 * `assistant-service.elf`: the Codex 0.160.0 engine ported by
   [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli), adapted to expose
-  `codex app-server` on a **127.0.0.2:49322** socket. Shell tools and file
+  `codex app-server` on a **127.0.0.1:49322** socket. Shell tools and file
   modifications run locally.
 * `PPSA99105`: a native graphical application built with tools from
   [OpenNOW PS5](https://github.com/Portablelle/opennow-ps5) and the Botty+ renderer.

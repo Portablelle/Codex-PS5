@@ -306,6 +306,17 @@ with open(done, 'w') as marker: marker.write(str(unread))
 os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsumed.
 ''')
 
+    (stage / 'stubborn-engine.py').write_text('''import json, os, signal, sys, time
+for line in sys.stdin:
+ value = json.loads(line)
+ if value.get('stubborn'):
+  signal.signal(signal.SIGTERM, signal.SIG_IGN)  # Only SIGKILL stops this engine.
+  print(json.dumps({'pid':os.getpid()}), flush=True)
+  while True: time.sleep(0.05)
+ print(json.dumps({'pid':os.getpid(),'echo':value}), flush=True)
+ if value.get('finish'): break
+''')
+
     def build(name):
         rpc, admin = free_port(), free_port()
         executable = stage / name
@@ -417,6 +428,37 @@ os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsume
             peer.close()
         if process.poll() is None:
             process.send_signal(signal.SIGCONT)
+            process.terminate(); process.wait(timeout=5)
+
+    # Tearing down an engine that ignores SIGTERM must not stall the other session.
+    stubborn_executable, stubborn_rpc, stubborn_admin = build('stubborn-service')
+    env = {**env, 'SERVICE_TEST_ENGINE': str(stage / 'stubborn-engine.py')}
+    process = subprocess.Popen([str(stubborn_executable)], env=env)
+    peers = []
+    try:
+        stubborn, other = Peer(stubborn_rpc), Peer(stubborn_rpc); peers.extend((stubborn, other))
+        stubborn.send({'stubborn': True}); stubborn_pid = stubborn.line()['pid']
+        other.send({'hello': 1}); other_pid = other.line()['pid']
+        stubborn.close()
+        time.sleep(0.2)  # The service is now tearing the stubborn engine down (SIGTERM ignored).
+        started = time.monotonic()
+        other.send({'during_teardown': True})
+        assert other.line()['pid'] == other_pid
+        latency = time.monotonic() - started
+        assert latency < 0.4, f'The other session stalled for {latency:.2f}s during teardown'
+        def reaped():  # SIGKILL after the grace period, then the zombie is collected.
+            return not subprocess.run(['ps', '-o', 'stat=', '-p', str(stubborn_pid)], capture_output=True, text=True).stdout.strip()
+        wait_for(reaped, timeout=5)
+        other.send({'finish': True}); other.line()
+        wait_for(lambda: http(stubborn_admin, 'GET', '/status')[1]['connections'] == 0)
+        head, body = http(stubborn_admin, 'POST', '/stop')
+        assert b'200 OK' in head and body['idle']
+        assert process.wait(timeout=5) == 0
+        print('Backend: a SIGTERM-ignoring engine is reaped without stalling the other session')
+    finally:
+        for peer in peers:
+            peer.close()
+        if process.poll() is None:
             process.terminate(); process.wait(timeout=5)
 
 
