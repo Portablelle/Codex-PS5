@@ -13,20 +13,21 @@ std::string_view commandSummary(std::string_view command,unsigned depth=0);
 namespace summary_detail {
 // Variables that change which program or library a bare name runs.
 inline bool redirectsProgram(std::string_view assignment){
-    for(std::string_view v:{"PATH=","LD_","DYLD_","BASH_ENV=","ENV=","IFS=","SHELLOPTS=","BASHOPTS=","PS4="})if(assignment.starts_with(v))return true;
+    for(std::string_view v:{"PATH=","LD_","DYLD_","BASH_ENV=","ENV=","IFS=","SHELLOPTS=","BASHOPTS=","PS4=","BASH_FUNC_","TAR_OPTIONS="})if(assignment.starts_with(v))return true;
     return false;
 }
 // What a sed script can do beyond printing: write files (w, W, s///w) or run
 // commands (e, s///e). Addresses and s/y operands are skipped; anything not
-// understood counts as running a program.
+// understood counts as running a program. Arguments end at ; or } as in sbase
+// sed (GNU reads to the end of the line, so parsing on only overstates).
 struct SedEffects {bool write=false,run=false;};
 inline SedEffects sedScript(std::string_view s){
     SedEffects fx;std::size_t i=0;
     const auto delimited=[&](char d){ // skip to just past the next unescaped d
-        while(i<s.size() && s[i]!=d){if(s[i]=='\n'){fx.run=true;return;}i+=s[i]=='\\'?2:1;}
+        while(i<s.size() && s[i]!=d){if(s[i]=='\n' || s[i]=='['){fx.run=true;return;}i+=s[i]=='\\'?2:1;}
         if(i>=s.size())fx.run=true;else ++i;
     };
-    const auto toEnd=[&]{while(i<s.size() && s[i]!='\n')++i;};
+    const auto argument=[&]{while(i<s.size() && std::string_view(";}\n").find(s[i])==std::string_view::npos)++i;};
     while(i<s.size() && !fx.run){
         const char c=s[i];
         if(std::string_view(" \t\n;{}!,$0123456789~+").find(c)!=std::string_view::npos){++i;continue;}
@@ -37,17 +38,16 @@ inline SedEffects sedScript(std::string_view s){
             if(i>=s.size()){fx.run=true;break;}
             const char d=s[i++];delimited(d);delimited(d);
             if(c=='s')for(;i<s.size() && std::string_view(";}\n").find(s[i])==std::string_view::npos;++i){
-                if(s[i]=='w'){fx.write=true;toEnd();break;}
+                if(s[i]=='w'){fx.write=true;argument();break;}
                 if(s[i]=='e')fx.run=true;
                 else if(std::string_view("gpiImM0123456789 \t").find(s[i])==std::string_view::npos)fx.run=true;
             }
         }
-        else if(c=='w' || c=='W'){fx.write=true;toEnd();}
+        else if(c=='w' || c=='W'){fx.write=true;argument();}
         else if(c=='e')fx.run=true;
-        else if(c=='a' || c=='i' || c=='c' || c=='r' || c=='R')toEnd();
-        else if(c=='b' || c=='t' || c=='T' || c==':' || c=='q' || c=='Q' || c=='l' || c=='L')
-            while(i<s.size() && std::string_view(";}\n").find(s[i])==std::string_view::npos)++i;
-        else if(std::string_view("pPdDnNgGhHxz=F").find(c)==std::string_view::npos)fx.run=true;
+        else if(c=='a' || c=='i' || c=='c' || c=='r' || c=='R' || c=='b' || c=='t' || c=='T' || c==':')argument();
+        // l, q, Q and L take at most a number: the main loop reads what follows.
+        else if(std::string_view("pPdDnNgGhHxz=FlqQL").find(c)==std::string_view::npos)fx.run=true;
     }
     return fx;
 }
@@ -147,13 +147,13 @@ inline std::string_view simple(std::vector<std::string> w,unsigned depth){
             const std::string_view o=w[i];
             if(o.starts_with("--")){
                 const auto key=o.substr(0,o.find('='));
+                // Options that run another program, including GNU abbreviations.
+                for(std::string_view run:{"--to-command","--use-compress-program","--info-script","--new-volume-script","--checkpoint-action","--rsh-command"})
+                    if(key.size()>4 && run.starts_with(key))return "Running a program";
                 if(key.size()>3 && std::string_view("--create").starts_with(key))create=true;
                 else if(key.size()>3 && (std::string_view("--extract").starts_with(key) || key=="--get"))extract=true;
                 else if(key.size()>3 && std::string_view("--list").starts_with(key))list=true;
                 else if(key.starts_with("--app") || key.starts_with("--upd") || key.starts_with("--del") || key.starts_with("--conc"))other=true;
-                // Options that run another program.
-                else if(key.starts_with("--to-com") || key.starts_with("--use-com") || key.starts_with("--info-s") ||
-                        key.starts_with("--new-vol") || key.starts_with("--checkpoint-a") || key.starts_with("--rsh"))return "Running a program";
             } else if(i==1 || o.starts_with("-")){
                 for(std::size_t c=o.starts_with("-")?1:0;c<o.size();++c){if(o[c]=='I' || o[c]=='F')return "Running a program";if(o[c]=='f' || o[c]=='C')break;mode(o[c]);}
             }

@@ -60,6 +60,11 @@ int main(){
         assert(commandSummary(command)=="Transforming text");
     assert(commandSummary("sed '/x/w out' f")=="Writing to a file" && commandSummary("sed '1e echo hi' f")=="Running a program");
     assert(commandSummary("sed 's/a/b/;w out' f")=="Writing to a file" && commandSummary("sed 's/a/b' f")=="Running a program");
+    // sbase ends r/R names and labels at ; or }, and l/q need no separator.
+    for(auto command:{"sed 'r x;w /data/important' f","sed '1{r x}w /data/important' f","sed 'l w /data/important' f","sed 'q w /data/important' f"})
+        assert(commandSummary(command)=="Writing to a file");
+    assert(commandSummary("sed '/[/s]/w /data/important;:]]' f")=="Running a program");
+    assert(commandSummary("sed -n '$p' f")=="Transforming text" && commandSummary("sed '10q' f")=="Transforming text");
     // GNU-only forms: unknown short options, attached -i suffixes and abbreviated long options.
     assert(commandSummary("sed -l 1 '1e echo PWNED' f")=="Running a program" && commandSummary("sed -i.e1 '1e echo' f")=="Running a program");
     assert(commandSummary("sed -i.bak 's/a/b/' f")=="Editing a file");
@@ -73,6 +78,9 @@ int main(){
     assert(commandSummary("tar -f cx.tar -x")=="Extracting an archive" && commandSummary("tar -tvf a.tar")=="Listing an archive's contents");
     assert(commandSummary("tar -cxf a")=="Working with an archive" && commandSummary("tar --to-command=sh -xf a")=="Running a program");
     assert(commandSummary("tar -I zstd -xf a")=="Running a program");
+    assert(commandSummary("tar --to-c=sh -xf a")=="Running a program" && commandSummary("tar --use-c=./x -xf a")=="Running a program");
+    assert(commandSummary("TAR_OPTIONS=--to-command=sh tar -xf a")=="Running a program");
+    assert(commandSummary("env 'BASH_FUNC_ls%%=() { rm a; }' bash -c ls")=="Running a program");
     assert(commandSummary("tar -rf a b")=="Working with an archive");
     // A tool name is trusted only from system or bundled runtime directories.
     assert(commandSummary("/bin/rm a")=="Deleting a file" && commandSummary("/data/codex-ps5/runtime/tools-0195b42eb983440b31ca75b19881e9ee/ls")=="Listing files");
