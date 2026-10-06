@@ -10,3 +10,5 @@ ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp tests/l
 build/tests/language
 ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp src/ingame.cpp tests/ingame_test.cpp -o build/tests/ingame
 build/tests/ingame
+bash tools/build-ingame-host.sh
+python3 tests/resident_service_test.py
