@@ -47,7 +47,7 @@ Repository documentation, source strings and sample conversations use English.
 French interface translations are retained in `src/language.hpp`. The host UI
 preview uses English by default; set `PREVIEW_FRENCH=1` to preview the French
 interface (`PREVIEW_ENGLISH=1` explicitly selects English). `PREVIEW_KEYBOARD`,
-`PREVIEW_APPROVAL`, `PREVIEW_QUIT`, `PREVIEW_THINKING` and `PREVIEW_SIGNIN`
+`PREVIEW_APPROVAL`, `PREVIEW_DECISION`, `PREVIEW_QUIT`, `PREVIEW_THINKING` and `PREVIEW_SIGNIN`
 render the other screens, and `PREVIEW_STATUS` overrides the status text.
 
 ## Dictation
@@ -145,9 +145,18 @@ redirections, shell expansions and requests for additional permissions still
 require confirmation, even if their apparent intent is to read data.
 A command missing from the request is never automatically accepted based on
 details from a previous command. File changes show the path and diff supplied
-by Codex. Missing or excessively long details cannot be approved in this
-prototype. The initial choice is **Decline**. The application does not reuse
-an earlier Cross button press to approve a new action.
+by Codex. When a request refers to a command or file change announced earlier
+in the turn, its details stay available until that item finishes, however many
+other commands the turn runs. Missing or excessively long details cannot be
+approved in this prototype. The initial choice is **Decline**. The application
+does not reuse an earlier Cross button press to approve a new action.
+
+After each choice, the conversation keeps a short line with the decision and
+the summary, for example "Allowed: Moving a file" or "Declined: Deleting a
+file" ("A command" or "A file change" when there is no summary). It records the
+decision actually sent: an action with incomplete details is always
+"Declined", and so are the requests declined on quit. Commands accepted
+automatically leave no line.
 
 ## Local toolbox
 

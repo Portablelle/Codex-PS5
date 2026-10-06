@@ -152,6 +152,28 @@ int main(){
         assert(f.state.thread=="retried" && f.state.status=="Ready" && f.outgoing.size()==count+1);
         assert(f.submit("Hello") && f.state.busy);
     }
+    {
+        // A long turn must not push out the details of an item still waiting for approval.
+        Protocol f;f.begin();
+        assert(f.ingest(R"({"method":"item/started","params":{"item":{"type":"fileChange","id":"a-patch","changes":[{"path":"/data/a.txt","kind":{"type":"update"},"diff":"-old\n+new"}]}}})"));
+        for(int i=0;i<100;++i){
+            const auto item=Json({{"type","commandExecution"},{"id","cmd-"+std::to_string(i)},{"command","ls /data"}});
+            assert(f.ingest(Json({{"method","item/started"},{"params",{{"item",item}}}}).dump()));
+            assert(f.ingest(Json({{"method","item/completed"},{"params",{{"item",item}}}}).dump()));
+        }
+        assert(f.ingest(R"({"method":"item/fileChange/requestApproval","id":5,"params":{"itemId":"a-patch"}})"));
+        const auto& a=f.state.approvals.front();
+        assert(a.reviewable && a.summary=="Editing a file" && a.description.find("+new")!=std::string::npos);
+        f.decide(false);
+        // A completed item can no longer supply details to a request.
+        assert(f.ingest(R"({"method":"item/commandExecution/requestApproval","id":6,"params":{"itemId":"cmd-3"}})"));
+        assert(!f.state.approvals.front().reviewable);f.decide(true);
+        assert(Json::parse(f.outgoing.back())["result"]["decision"]=="decline");
+        // Each decision leaves a line in the conversation, with the effective choice.
+        assert(f.state.messages.size()==2);
+        assert(f.state.messages[0].decision==Decision::declined && f.state.messages[0].text=="Editing a file");
+        assert(f.state.messages[1].decision==Decision::declined && f.state.messages[1].text=="A command");
+    }
     language::initialize(2);
     Protocol p;p.begin();assert(p.outgoing.size()==1);
     assert(Json::parse(p.outgoing.front())["params"]["clientInfo"]["version"]==EXPECTED_CLIENT_VERSION);
@@ -208,20 +230,27 @@ int main(){
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":77,"params":{"itemId":"patch1","reason":"edit"}})"));
     assert(p.state.approvals.front().summary=="Editing a file");
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["id"]==77 && reply["result"]["decision"]=="accept");
+    assert(p.state.messages.back().decision==Decision::allowed && p.state.messages.back().text=="Editing a file");
     assert(p.ingest(R"({"method":"item/fileChange/requestApproval","id":78,"params":{"itemId":"unknown"}})"));
     assert(p.state.approvals.front().summary.empty());
     p.decide(true);reply=Json::parse(p.outgoing.back());assert(reply["result"]["decision"]=="decline");
+    assert(p.state.messages.back().decision==Decision::declined && p.state.messages.back().text=="A file change");
+    // One line per decision, after the prompt; auto-accepted reads leave none.
+    assert(p.state.messages.size()==10 && p.state.messages[2].text=="Checking storage space\nRequesting additional permissions");
+    assert(p.state.messages[7].decision==Decision::declined && p.state.messages[7].text=="Renaming a file");
+    assert(decisionLine(p.state.messages[7])=="Refusé : Renommage d'un fichier");
+    assert(decisionLine(p.state.messages[2])=="Refusé : Vérification de l'espace de stockage · Demande de permissions supplémentaires");
     assert(p.ingest(R"({"method":"item/agentMessage/delta","params":{"delta":"Created — done."}})"));assert(p.state.response=="Created — done.");
     assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"failed","error":{"message":"permission denied"}}}})"));
     assert(!p.state.busy && p.state.status.find("permission denied")!=std::string::npos);
-    assert(p.state.messages.size()==2 && p.state.messages.back().text=="Created — done.");
+    assert(p.state.messages.size()==11 && p.state.messages.back().text=="Created — done.");
     p.submit("What about the external drive?");
-    assert(p.state.messages.size()==3 && p.state.messages[1].text=="Created — done.");
+    assert(p.state.messages.size()==12 && p.state.messages[10].text=="Created — done.");
     assert(p.ingest(R"({"method":"item/agentMessage/delta","params":{"itemId":"reply2","delta":"There is "}})"));
     assert(p.ingest(R"({"method":"item/agentMessage/delta","params":{"itemId":"reply2","delta":"575 GiB left."}})"));
-    assert(p.state.messages.size()==4 && p.state.messages.back().text=="There is 575 GiB left.");
+    assert(p.state.messages.size()==13 && p.state.messages.back().text=="There is 575 GiB left.");
     assert(p.ingest(R"({"method":"item/completed","params":{"item":{"id":"reply2","type":"agentMessage","text":"There is 575.5 GiB left."}}})"));
-    assert(p.state.messages.size()==4 && p.state.messages.back().text=="There is 575.5 GiB left.");
+    assert(p.state.messages.size()==13 && p.state.messages.back().text=="There is 575.5 GiB left.");
     assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})"));
     // Quit sequence (Client::stop): decline every pending approval, then interrupt the active turn.
     p.submit("Run a long task.");
