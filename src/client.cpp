@@ -22,10 +22,10 @@ void Client::loop(){
             platform::sleep(500000);continue;
         }
         {std::lock_guard lock(mutex_);protocol_.begin();}
-        std::string incoming;bool valid=true;
+        std::string incoming;bool valid=true;std::uint64_t quitDeadline=0;
         while(valid){
-            std::deque<std::string> queue;bool stopping=false;
-            {std::lock_guard lock(mutex_);stopping=stopping_;queue.swap(protocol_.outgoing);}
+            std::deque<std::string> queue;bool stopping=false,awaitingTurn=false;
+            {std::lock_guard lock(mutex_);stopping=stopping_;awaitingTurn=protocol_.interruptPending();queue.swap(protocol_.outgoing);}
             for(const auto& line:queue){
                 std::size_t offset=0;
                 while(offset<line.size()){
@@ -34,7 +34,12 @@ void Client::loop(){
                 }
                 if(!valid)break;
             }
-            if(!valid || stopping)break;
+            if(!valid)break;
+            if(stopping){ // Give a deferred interrupt up to one second to learn the turn id.
+                if(!awaitingTurn)break;
+                if(!quitDeadline)quitDeadline=platform::now()+1000000;
+                else if(platform::now()>=quitDeadline)break;
+            }
             char bytes[8192];int n=platform::receive(fd,bytes,sizeof(bytes));
             if(n==-2)continue; // timeout; lets pending UI actions reach the server
             if(n<=0)break;

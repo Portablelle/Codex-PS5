@@ -39,19 +39,40 @@ static uint64_t now_ms(void){
 static int nonblocking(int fd){
     int flags=fcntl(fd,F_GETFL);return flags<0?-1:fcntl(fd,F_SETFL,flags|O_NONBLOCK);
 }
+#define DYING_LIMIT 8
+struct dying {pid_t pid;uint64_t kill_at;int killed;};
+static struct dying dying_children[DYING_LIMIT];
 static void terminate(pid_t child){
     if(child<=0)return;
     int status;pid_t result;
     do {result=waitpid(child,&status,WNOHANG);}while(result<0 && errno==EINTR);
     if(result!=0)return; /* Never signal a PID that has already been reaped. */
     kill(-child,SIGTERM);
-    for(unsigned attempts=0;attempts<20;++attempts){
-        do {result=waitpid(child,&status,WNOHANG);}while(result<0 && errno==EINTR);
-        if(result!=0)return;
-        usleep(50000);
+    /* Do not wait here: this single event loop also serves the other session and the admin
+       endpoint. reap_dying() reaps the child and sends SIGKILL if it ignores SIGTERM for 1s. */
+    for(unsigned i=0;i<DYING_LIMIT;++i)if(dying_children[i].pid<=0){
+        dying_children[i]=(struct dying){child,now_ms()+1000,0};return;
     }
-    kill(-child,SIGKILL);
+    kill(-child,SIGKILL); /* Table full: fall back to waiting. */
     while(waitpid(child,&status,0)<0 && errno==EINTR){}
+}
+/* With block, waits for every engine to exit, still giving each its full SIGTERM grace period. */
+static void reap_dying(int block){
+    for(unsigned i=0;i<DYING_LIMIT;++i){
+        struct dying *d=&dying_children[i];if(d->pid<=0)continue;
+        for(;;){
+            int status;pid_t result;
+            do {result=waitpid(d->pid,&status,WNOHANG);}while(result<0 && errno==EINTR);
+            if(result!=0){d->pid=0;break;}
+            if(now_ms()>=d->kill_at){
+                if(!d->killed){kill(-d->pid,SIGKILL);d->killed=1;}
+                if(block){while(waitpid(d->pid,&status,0)<0 && errno==EINTR){}d->pid=0;}
+                break;
+            }
+            if(!block)break;
+            usleep(10000);
+        }
+    }
 }
 static void destroy(struct session *s){
     if(s->client>=0)close(s->client);
@@ -162,7 +183,7 @@ int ps5_assistant_run(void){
             fds[index+1]=(struct pollfd){s->eof||!engine?-1:s->io,engine,0};
         }
         if(poll(fds,sizeof(fds)/sizeof(*fds),100)<0){if(errno==EINTR)continue;break;}
-        uint64_t now=now_ms();
+        uint64_t now=now_ms();reap_dying(0);
         for(unsigned i=0;i<SESSION_LIMIT;++i){
             struct session *s=&sessions[i];if(s->client<0)continue;
             unsigned index=2+CONTROL_LIMIT+i*2;short c=fds[index].revents,e=fds[index+1].revents;
@@ -208,6 +229,7 @@ int ps5_assistant_run(void){
         }
     }
     for(unsigned i=0;i<SESSION_LIMIT;++i)destroy(&sessions[i]);
+    reap_dying(1);
     for(unsigned i=0;i<CONTROL_LIMIT;++i)if(controls[i].fd>=0)close(controls[i].fd);
     close(admin);close(server);return 0;
 }

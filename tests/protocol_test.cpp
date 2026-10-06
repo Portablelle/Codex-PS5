@@ -113,8 +113,26 @@ int main(){
     // Once the turn has ended there is nothing to interrupt, so quitting queues nothing.
     assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"interrupted"}}})"));
     before=p.outgoing.size();p.interrupt();assert(p.outgoing.size()==before);
+    // An interrupt asked before the turn id is known is deferred until it arrives.
+    p.submit("Another task.");before=p.outgoing.size();
+    p.interrupt();
+    assert(p.interruptPending() && p.outgoing.size()==before);
+    assert(p.ingest(R"({"method":"turn/started","params":{"turn":{"id":"late-turn"}}})"));
+    assert(!p.interruptPending() && p.outgoing.size()==before+1);
+    reply=Json::parse(p.outgoing[before]);
+    assert(reply["method"]=="turn/interrupt" && reply["params"]["turnId"]=="late-turn");
+    assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"interrupted"}}})"));
+    // A deferred interrupt must not leak into a later turn.
+    p.submit("Third task.");p.interrupt();assert(p.interruptPending());
+    assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"failed"}}})"));
+    assert(!p.interruptPending());
+    p.submit("Fourth task.");before=p.outgoing.size();
+    assert(p.ingest(R"({"method":"turn/started","params":{"turn":{"id":"turn-4"}}})"));
+    assert(p.outgoing.size()==before);
+    assert(p.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})"));
     assert(!p.ingest("[1,2]"));assert(!p.ingest("not json"));
     assert(!p.ingest(R"({"id":9223372036854775807,"result":{}})"));
-    p.disconnect();assert(p.outgoing.empty() && p.state.thread.empty());
+    assert(p.state.authenticated);
+    p.disconnect();assert(p.outgoing.empty() && p.state.thread.empty() && !p.state.authenticated);
     std::cout<<"Protocol: handshake, UTF-8, approvals, errors and disconnect passed\n";
 }

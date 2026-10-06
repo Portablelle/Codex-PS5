@@ -14,9 +14,10 @@ behavior; keep it and `INGAME.md` in sync with the code you change.
 - `tests/resident_service_test.py` needs `build/ingame-service`, so run `tools/test.sh`
   once before running it on its own.
 - `bash tools/preview.sh` renders the UI to `build/preview.png` on the host (needs Pillow).
-- The `ps5-build` CI job compile-checks `backend/assistant-service.c` and the in-game
-  service with the PS5 SDK (`prospero-clang -Werror`, `tools/ps5-compile-check.sh`) on a
-  self-hosted runner. It does not build the native app or link the Codex engine.
+- The `ps5-build` CI job compile-checks with the PS5 SDK and `-Werror`, on a self-hosted
+  runner: `backend/assistant-service.c` and the in-game service
+  (`tools/ps5-compile-check.sh`), and every native app source in `src/`
+  (`tools/ps5-native-check.sh`). It links nothing: no package, whisper.cpp or Codex engine.
 - Not available in CI or locally: the full PS5 builds
   (`tools/build-*-remote.sh`), Codex itself
   (`tests/app_server_handshake.py`) and the console. Say so when a change depends on them.
