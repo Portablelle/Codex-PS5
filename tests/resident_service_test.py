@@ -220,6 +220,14 @@ def resident_test():
         command('trigger'); next_capture = adapter.action('capture')
         assert next_capture['request'] == request + 1
         adapter.close()  # Real media owner loss cancels and retains cleanup.
+        def adapter_released():  # A second adapter is refused until the service has dropped the first.
+            probe = Peer(port)
+            try:
+                probe.send({'command': 'hello', 'role': 'observer'})
+                return not probe.until(lambda message: message.get('event') == 'status')['adapterConnected']
+            finally:
+                probe.close()
+        wait_for(adapter_released)
         adapter = Peer(port); peers.append(adapter)
         adapter.send({'command': 'hello', 'role': 'adapter'})
         adapter.until(lambda message: message.get('event') == 'status')
@@ -291,8 +299,10 @@ int main(void){signal(SIGPIPE,SIG_IGN);return ps5_assistant_run();}
     (stage / 'dying-engine.py').write_text('''import os, time
 gate, done = os.environ['SERVICE_TEST_GATE'], os.environ['SERVICE_TEST_DONE']
 while not os.path.exists(gate): time.sleep(0.01)
+import fcntl, struct, termios
+unread = struct.unpack('i', fcntl.ioctl(0, termios.FIONREAD, b'\\0\\0\\0\\0'))[0]
 os.write(1, b'engine final output\\n')
-open(done, 'w').close()
+with open(done, 'w') as marker: marker.write(str(unread))
 os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsumed.
 ''')
 
@@ -376,11 +386,17 @@ os._exit(0)  # Never reads stdin: whatever the service forwarded stays unconsume
         # Stop the service so the engine's output and exit are first seen together.
         process.send_signal(signal.SIGSTOP)
         try:
+            def stopped():
+                state = subprocess.run(['ps', '-o', 'stat=', '-p', str(process.pid)], capture_output=True, text=True).stdout
+                return state.strip().startswith('T')
+            wait_for(stopped)  # SIGSTOP is asynchronous: the service must really be frozen.
             gate.touch()
-            wait_for(done.exists)
+            wait_for(lambda: done.exists() and done.read_text())
             time.sleep(0.2)
         finally:
             process.send_signal(signal.SIGCONT)
+        # The engine exited with bytes the service had forwarded but it never consumed.
+        assert int(done.read_text()) > 0, 'Engine must exit with unread input'
         received = b''
         try:
             while True:
