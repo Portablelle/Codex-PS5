@@ -19,11 +19,14 @@ concurrency:
 
 jobs:
   claude:
+    # Bots (e.g. the reviewer quoting "@claude") are rejected by the action anyway;
+    # skip them here so they don't show up as failed runs.
     if: |
+      github.event.sender.type != 'Bot' && (
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -34,13 +37,14 @@ jobs:
       actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        # Stay on v4: v6 persists the read-only GITHUB_TOKEN through an includeIf file
+        # that claude-code-action doesn't clear, so pushes fail with 403. Disabling
+        # persist-credentials doesn't help: the action fetches the PR branch with the
+        # checkout credentials before it installs its own token.
+        uses: actions/checkout@v4
         with:
           # Full history: compare with the base and check tests against pre-fix code
           fetch-depth: 0
-          # checkout@v6 keeps the read-only GITHUB_TOKEN in an includeIf credentials file
-          # the action doesn't clear; it overrides the app token and pushes fail with 403.
-          persist-credentials: false
 
       - name: Run Claude Code
         id: claude
