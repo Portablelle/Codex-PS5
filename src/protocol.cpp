@@ -128,7 +128,7 @@ void Protocol::begin(std::string_view resume,bool skipResume){
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
     resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;history_.clear();
     state.conversation=std::move(saved);
-    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.3"}}},
+    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.4"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){

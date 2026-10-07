@@ -69,7 +69,7 @@ Download these two files from the same
 
 | File | What it contains |
 | --- | --- |
-| `codex-ps5-0.0.3-Folder.zip` | Native app, runtime modules, and the complete Whisper Small Q5_1 model |
+| `codex-ps5-0.0.4-Folder.zip` | Native app, runtime modules, and the complete Whisper Small Q5_1 model |
 | `assistant-service.elf` | Codex engine and local file tools |
 
 1. Extract the Folder ZIP. Using [PS5 Upload](https://github.com/phantomptr/ps5upload)

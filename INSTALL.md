@@ -4,7 +4,7 @@
 
 From one [GitHub release](https://github.com/Portablelle/Codex-PS5/releases), get:
 
-- `codex-ps5-0.0.3-Folder.zip`: the complete native title, including Whisper Small Q5_1.
+- `codex-ps5-0.0.4-Folder.zip`: the complete native title, including Whisper Small Q5_1.
 - `assistant-service.elf`: the engine payload. Both downloads are required.
 - Optional: `SHA256SUMS` to verify downloads. `licenses.zip`, `LICENSE`, and
   `THIRD_PARTY.md` contain notices for the standalone payload; the Folder ZIP
@@ -29,7 +29,7 @@ by another application.
 
 ## First installation
 
-1. Extract `codex-ps5-0.0.3-Folder.zip` on your computer. It contains **PPSA99105**
+1. Extract `codex-ps5-0.0.4-Folder.zip` on your computer. It contains **PPSA99105**
    directly at the archive root.
 2. Upload the complete **PPSA99105** folder into **`/data/homebrew`**.
    With PS5 Upload, use a folder transfer; with FTP, drag the folder into that
