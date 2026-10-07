@@ -10,7 +10,7 @@ Changes since the 0.0.3 prototype:
   a bounded history of up to 20 turns, 64 messages, or 1 MiB.
 - Keep the remembered conversation when resuming fails, show the engine's reason,
   and fall back to a new conversation without automatically resending a prompt.
-- Start a fresh conversation between turns with Options or `/new`.
+- Start a fresh conversation between turns by entering `/new` and pressing Options.
 - Retry a failed conversation start by sending a prompt again instead of leaving
   the interface unable to send.
 
