@@ -1,4 +1,4 @@
-# Codex PS5 0.0.3 — native prototype
+# Codex PS5 0.0.4 — native prototype
 
 An assistant for files on a jailbroken PS5, with a native controller interface
 and local dictation. This project is not an official OpenAI or Sony application.

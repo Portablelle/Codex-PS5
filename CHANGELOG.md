@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.0.4 — prepared prerelease
+
+Changes since the 0.0.3 prototype:
+
+### Conversations
+
+- Resume the last conversation after closing the app or reconnecting, restoring
+  a bounded history of up to 20 turns, 64 messages, or 1 MiB.
+- Keep the remembered conversation when resuming fails, show the engine's reason,
+  and fall back to a new conversation without automatically resending a prompt.
+- Start a fresh conversation between turns by entering `/new` and pressing Options.
+- Retry a failed conversation start by sending a prompt again instead of leaving
+  the interface unable to send.
+
+### Approvals
+
+- Summarize command and file-change approval requests in plain language while
+  retaining their technical details and keeping Decline selected by default.
+- Keep approval details for running items until completion, with oldest-first
+  eviction when the cache limit is reached.
+- Record each approval decision in the conversation as an allowed or declined
+  action, translated into the interface language.
+
+The downloads remain a complete ShadowMount Folder ZIP with Whisper Small Q5_1
+and a separate `assistant-service.elf`. The experimental in-game companion is
+not included; see [INGAME.md](INGAME.md).
+
+Release preparation does not claim a new end-to-end console test. Prompts
+interrupted by a disconnect are never automatically resent.
+
 ## 0.0.3 — prepared prerelease
 
 Changes since the 0.0.2 prototype:
