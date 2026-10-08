@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Produce the native app-server variant without editing the upstream snapshot."""
 from pathlib import Path
-import shutil,hashlib,json
+import argparse,shutil,hashlib,json,re
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--direct',action='store_true',help='Use the staged directory instead of Docker /work')
+args=parser.parse_args()
 root=Path(__file__).resolve().parents[1]
 destination=root/'.deps/backend'
 shutil.copytree(root/'vendor/ps5-ai-cli',destination,dirs_exist_ok=True,
@@ -72,3 +75,10 @@ s=s.replace("('box', box)]", "('box', box), "+', '.join(f"('{name}', {name})" fo
 s=s.replace("lines.append('};')\n(root / 'build/runtime-tools.h')",
  '\n'.join(f"lines.append('{{\"{'ps5-tools' if name=='tools' else name}\", runtime_{name}, sizeof(runtime_{name})}},')" for name in native_names)+"\nlines.append('};')\n(root / 'build/runtime-tools.h')")
 p.write_text(s)
+
+if args.direct:
+ if not re.fullmatch(r'/[A-Za-z0-9_./-]+',str(destination)):
+  raise SystemExit('Direct build directory must not contain shell-special characters')
+ for p in sorted((destination/'tools').iterdir()):
+  if p.is_file() and p.suffix in ('.sh','.py'):
+   p.write_text(p.read_text().replace('/work',str(destination)))

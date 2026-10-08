@@ -48,7 +48,9 @@ for tree in (root / 'licenses', root / 'vendor/ps5-ai-cli/LICENSES'):
 (base / 'NOTICE.md').write_text(notice)
 import re
 installer = a.portal_root / 'src/codex-install.js'
-installer.write_text(re.sub(r"const HASH = '[a-f0-9]{64}'", "const HASH = '" + hashlib.sha256(blob).hexdigest() + "'", installer.read_text()))
+installer.parent.mkdir(parents=True, exist_ok=True)
+if installer.exists():
+    installer.write_text(re.sub(r"const HASH = '[a-f0-9]{64}'", "const HASH = '" + hashlib.sha256(blob).hexdigest() + "'", installer.read_text()))
 payload = dict(service); payload.pop('path'); payload['chunkSize'] = block_size
 (a.portal_root / 'src/codex-payload.js').write_text('export const PAYLOAD = ' + json.dumps(payload, indent=2) + ';\n')
 print('Exported Codex', version, 'in', len(physical), 'verified blocks')

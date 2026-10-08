@@ -19,9 +19,14 @@ and `INGAME.md` in sync with the code you change.
   runner: `backend/assistant-service.c` and the in-game service
   (`tools/ps5-compile-check.sh`), and every native app source in `src/`
   (`tools/ps5-native-check.sh`). It links nothing: no package, whisper.cpp or Codex engine.
-- Not available in CI or locally: the full PS5 builds
-  (`tools/build-*-remote.sh`), Codex itself
-  (`tests/app_server_handshake.py`) and the console. Say so when a change depends on them.
+- The live Codex handshake (`tests/app_server_handshake.py`) and console tests
+  are not part of the host suite. Say so when a change depends on them.
+- Portal publication uses the isolated Linux `codex-ps5-ci` runner on dedie for
+  full builds: `tools/build-native.sh`, `tools/build-backend-direct.sh`, then
+  `tools/fetch-model.py` and `tools/package-portal.py`. It needs the preinstalled
+  PS5 SDK, LLVM 18/19 and patched Rust 1.95 toolchain, without Docker or SSH access
+  inside a job. Same-repository PRs build but never publish. Packaging requires a
+  clean committed checkout; corresponding source comes only from `git archive HEAD`.
 
 ## Platforms
 

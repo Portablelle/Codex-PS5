@@ -1,0 +1,99 @@
+name: Portal release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: portal-release-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, linux, x64, codex-ps5-ci]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Host regressions
+        env:
+          CXX: g++
+        run: bash tools/test.sh
+      - name: Build native app directly in the isolated toolchain runner
+        run: bash tools/build-native.sh
+      - name: Build backend directly in the isolated toolchain runner
+        run: bash tools/build-backend-direct.sh
+      - name: Fetch verified model and package portal release
+        run: |
+          python3 tools/fetch-model.py
+          python3 tools/package-portal.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-portal-${{ github.sha }}
+          path: dist/codex-portal.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: [self-hosted, linux, x64, codex-ps5-ci]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-portal-${{ github.sha }}
+      - name: Publish commit-addressed release without replacing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="portal-$COMMIT"
+          if gh api "repos/$GH_REPO/commits/$tag" --jq .sha > tag-commit.txt 2> tag-error.txt; then
+            test "$(cat tag-commit.txt)" = "$COMMIT"
+          elif ! grep -q 'HTTP 404' tag-error.txt; then
+            cat tag-error.txt >&2
+            exit 1
+          fi
+          if gh api "repos/$GH_REPO/releases/tags/$tag" > release.json 2> release-error.txt; then
+            draft=$(jq -r .draft release.json)
+            asset_count=$(jq '[.assets[] | select(.name == "codex-portal.tar.gz")] | length' release.json)
+            if test "$asset_count" = 1; then
+              mkdir existing
+              gh release download "$tag" --pattern codex-portal.tar.gz --dir existing
+              cmp codex-portal.tar.gz existing/codex-portal.tar.gz
+            elif test "$asset_count" = 0 && test "$draft" = true; then
+              gh release upload "$tag" codex-portal.tar.gz
+            else
+              echo "Existing release has an invalid asset inventory: $tag" >&2
+              exit 1
+            fi
+            if test "$draft" = true; then
+              gh release edit "$tag" --draft=false --latest=false
+            fi
+            echo "Matching portal release published: $tag"
+            exit 0
+          fi
+          if ! grep -q 'HTTP 404' release-error.txt; then
+            cat release-error.txt >&2
+            exit 1
+          fi
+          gh release create "$tag" --target "$COMMIT" --draft --prerelease \
+            --title "Codex portal $COMMIT" \
+            --notes "Portal package built from main commit $COMMIT. Includes corresponding committed source and per-file SHA-256 metadata."
+          gh release upload "$tag" codex-portal.tar.gz
+          gh release edit "$tag" --draft=false --latest=false

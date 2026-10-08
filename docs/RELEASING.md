@@ -58,3 +58,39 @@ cp build/preview.png docs/images/approval.png
 
 Keep the simulated-data caption. Console screenshots can replace these when
 available, after excluding account details, credentials, and private prompts.
+
+## Automated Portal packages
+
+The `Portal release` workflow builds every `main` push and publishes a prerelease
+tagged `portal-<40-character commit SHA>` with the single `codex-portal.tar.gz`
+asset. Both build and publication run on dedie's isolated `codex-ps5-ci` slot.
+Same-repository pull requests exercise the same package build with read-only
+repository permissions; they cannot publish. Fork PRs do not enter this runner.
+Manual workflow runs are allowed only on `main`.
+
+The runner image must supply the pinned backend PS5 SDK at `/opt/ps5-payload-sdk`,
+LLVM 18 and 19, Rust 1.95 with `rust-src` and the FreeBSD target, and the Rust
+standard-library patch from `vendor/ps5-ai-cli/tools/prepare-rust-std.py` applied
+at image build time. Native dependencies are downloaded and hash-verified by
+the existing native bootstrap. The backend uses `prepare-backend.py --direct`
+to adapt absolute Docker paths only in its ignored staging directory. Jobs need
+no Docker socket, SSH keys, sudo privileges or deployment credentials. Backend
+builds need more writable capacity than the small Portal test slot; provision
+bounded scratch space for Cargo and the complete source/build tree.
+
+`tools/package-portal.py` rejects uncommitted/untracked source changes and calls
+the existing `package.py` validation before export. Its archive contains
+`apps/codex/{manifest.json,chunks,LICENSE,NOTICE.md,codex-source.tar.gz}` and
+`src/codex-payload.js`. The source archive is made with `git archive HEAD`, so
+ignored private state, build output, dependency caches and generated vendor
+checkouts never enter it; tracked public vendor source remains included.
+The root `codex-release.json` has `schema: 1`, `commit`, `version` and a `sha256`
+map for every package file except itself, using package-root-relative names.
+The source tar is covered by this map, not the chunk manifest's `files` array.
+
+Publication creates a draft, uploads the asset, then publishes the prerelease
+without changing GitHub's latest stable release. Existing published assets must
+match byte-for-byte on a rerun and are never overwritten. A failed publication
+may leave a draft; a rerun uploads its missing asset or checks the existing asset
+before publishing that draft. A mismatching existing asset fails closed and needs
+manual investigation rather than replacement.
