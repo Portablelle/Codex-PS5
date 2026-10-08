@@ -94,3 +94,6 @@ match byte-for-byte on a rerun and are never overwritten. A failed publication
 may leave a draft; a rerun uploads its missing asset or checks the existing asset
 before publishing that draft. A mismatching existing asset fails closed and needs
 manual investigation rather than replacement.
+Re-running all build jobs succeeds against an existing asset only if the native
+and backend outputs reproduce byte-for-byte; reproducible PS5 linking is not
+assumed, so differences deliberately fail without modifying the release.

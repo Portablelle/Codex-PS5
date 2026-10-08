@@ -26,8 +26,6 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Host regressions
-        env:
-          CXX: g++
         run: bash tools/test.sh
       - name: Build native app directly in the isolated toolchain runner
         run: bash tools/build-native.sh
@@ -63,19 +61,35 @@ jobs:
         run: |
           set -euo pipefail
           tag="portal-$COMMIT"
-          if gh api "repos/$GH_REPO/commits/$tag" --jq .sha > tag-commit.txt 2> tag-error.txt; then
-            test "$(cat tag-commit.txt)" = "$COMMIT"
+          tag_exists=false
+          if gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type + " " + .object.sha' > tag-commit.txt 2> tag-error.txt; then
+            test "$(cat tag-commit.txt)" = "commit $COMMIT"
+            tag_exists=true
           elif ! grep -q 'HTTP 404' tag-error.txt; then
             cat tag-error.txt >&2
             exit 1
           fi
-          if gh api "repos/$GH_REPO/releases/tags/$tag" > release.json 2> release-error.txt; then
+          gh api "repos/$GH_REPO/releases?per_page=100" --paginate --slurp > releases.json
+          jq --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' releases.json > matching-releases.json
+          release_count=$(jq length matching-releases.json)
+          if test "$release_count" -gt 1; then
+            echo "Multiple releases claim the same commit tag: $tag" >&2
+            exit 1
+          fi
+          if test "$release_count" = 1; then
+            jq '.[0]' matching-releases.json > release.json
             draft=$(jq -r .draft release.json)
+            if test "$draft" = true; then
+              test "$(jq -r .target_commitish release.json)" = "$COMMIT"
+            else
+              test "$tag_exists" = true
+            fi
             asset_count=$(jq '[.assets[] | select(.name == "codex-portal.tar.gz")] | length' release.json)
             if test "$asset_count" = 1; then
-              mkdir existing
-              gh release download "$tag" --pattern codex-portal.tar.gz --dir existing
-              cmp codex-portal.tar.gz existing/codex-portal.tar.gz
+              existing=$(mktemp -d)
+              trap 'rm -rf "$existing"' EXIT
+              gh release download "$tag" --pattern codex-portal.tar.gz --dir "$existing"
+              cmp codex-portal.tar.gz "$existing/codex-portal.tar.gz"
             elif test "$asset_count" = 0 && test "$draft" = true; then
               gh release upload "$tag" codex-portal.tar.gz
             else
@@ -87,10 +101,6 @@ jobs:
             fi
             echo "Matching portal release published: $tag"
             exit 0
-          fi
-          if ! grep -q 'HTTP 404' release-error.txt; then
-            cat release-error.txt >&2
-            exit 1
           fi
           gh release create "$tag" --target "$COMMIT" --draft --prerelease \
             --title "Codex portal $COMMIT" \

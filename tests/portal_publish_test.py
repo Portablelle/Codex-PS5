@@ -18,15 +18,23 @@ if args[0] == 'api':
     if scenario == 'unauthorized':
         print('HTTP 401', file=sys.stderr)
         sys.exit(1)
-    if '/commits/' in args[1]:
-        print('b' * 40 if scenario == 'wrong_tag' else os.environ['COMMIT'])
-    elif scenario == 'new':
-        print('HTTP 404', file=sys.stderr)
-        sys.exit(1)
-    else:
+    if '/git/ref/tags/' in args[1]:
+        if scenario == 'new' or scenario.startswith('draft') or scenario == 'published_no_tag':
+            print('HTTP 404', file=sys.stderr)
+            sys.exit(1)
+        print('commit ' + ('b' * 40 if scenario == 'wrong_tag' else os.environ['COMMIT']))
+    elif '/releases?' in args[1]:
+        if scenario == 'new':
+            print('[[]]')
+            sys.exit(0)
         draft = scenario.startswith('draft')
         assets = [] if scenario.endswith('missing') else [{'name': 'codex-portal.tar.gz'}]
-        print(json.dumps({'draft': draft, 'assets': assets}))
+        target = 'b' * 40 if scenario == 'draft_wrong_target' else os.environ['COMMIT']
+        release = {'tag_name': 'portal-' + os.environ['COMMIT'], 'draft': draft,
+                   'target_commitish': target, 'assets': assets}
+        print(json.dumps([[release, release] if scenario == 'draft_duplicate' else [release]]))
+    else:
+        sys.exit(2)
 elif args[0:2] == ['release', 'download']:
     target = pathlib.Path(args[args.index('--dir') + 1]) / 'codex-portal.tar.gz'
     content = b'different' if scenario.endswith('mismatch') else pathlib.Path('codex-portal.tar.gz').read_bytes()
@@ -49,6 +57,8 @@ class PortalPublishTest(unittest.TestCase):
             gh.write_text(GH)
             gh.chmod(0o755)
             (root / 'codex-portal.tar.gz').write_bytes(b'package fixture')
+            (root / 'existing').mkdir()
+            (root / 'existing/codex-portal.tar.gz').write_bytes(b'stale compare fixture')
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                        SCENARIO=scenario, COMMIT='a' * 40, GH_REPO='fixture/repo')
             result = subprocess.run(['bash', '-c', script], cwd=root, env=env,
@@ -84,7 +94,8 @@ class PortalPublishTest(unittest.TestCase):
         self.assertNotIn('release upload', calls)
 
     def test_mismatching_assets_missing_published_asset_and_bad_tag_fail_closed(self):
-        for scenario in ('draft_mismatch', 'published_mismatch', 'published_missing', 'wrong_tag', 'unauthorized'):
+        for scenario in ('draft_mismatch', 'published_mismatch', 'published_missing', 'wrong_tag', 'unauthorized',
+                         'draft_wrong_target', 'draft_duplicate', 'published_no_tag'):
             with self.subTest(scenario=scenario):
                 code, calls = self.publish(scenario)
                 self.assertNotEqual(code, 0)
