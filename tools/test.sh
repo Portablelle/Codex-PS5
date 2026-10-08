@@ -26,3 +26,4 @@ python3 tests/portal_package_test.py
 python3 tests/backend_prepare_test.py
 python3 tests/portal_publish_test.py
 python3 tests/portal_workflow_test.py
+python3 tests/loader_fetch_test.py

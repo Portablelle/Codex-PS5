@@ -7,7 +7,9 @@
 * **ps5-ai-cli** — saawant12 and contributors. Snapshot under `vendor/ps5-ai-cli`.
   See its GPL license and `LICENSES/` for Codex (Apache-2.0), Dash,
   sbase, the SDK, Mio and other transitive components. This project's
-  adaptations are in `backend/` and `tools/prepare-backend.py`.
+  adaptations are in `backend/` and `tools/prepare-backend.py`. The vendored
+  `tools/fetch-loader.py` also limits Git repository discovery when applying its
+  checksum-pinned patch, so staged builds inside this checkout work correctly.
 * **PS5 AudioIn research** — BlackBearReloaded, GPL-3.0. Reference for signatures
   and capture configuration:
   https://github.com/blackbearreloaded/ps5-audio-decoding-research,

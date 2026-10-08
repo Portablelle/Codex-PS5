@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import urllib.request
@@ -43,8 +44,11 @@ if patch:
         if args.offline:
             raise SystemExit("Apply the loader patch with tools/fetch-loader.py on the host first")
         command = ["git", "apply", "--directory=vendor/shsrv"]
-        subprocess.run([*command, "--check", patch["path"]], cwd=root, check=True)
-        subprocess.run([*command, patch["path"]], cwd=root, check=True)
+        environment = dict(os.environ, GIT_CEILING_DIRECTORIES=str(root.parent))
+        for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+            environment.pop(name, None)
+        subprocess.run([*command, "--check", patch["path"]], cwd=root, env=environment, check=True)
+        subprocess.run([*command, patch["path"]], cwd=root, env=environment, check=True)
     for name, expected in patched.items():
         if hashlib.sha256((destination / name).read_bytes()).hexdigest() != expected:
             raise SystemExit(f"Patched loader checksum mismatch: {name}")
