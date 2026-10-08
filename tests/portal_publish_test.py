@@ -14,6 +14,9 @@ args = sys.argv[1:]
 scenario = os.environ['SCENARIO']
 with open('calls.txt', 'a') as stream:
     stream.write(' '.join(args) + '\\n')
+if '--slurp' in args:
+    print('unknown flag: --slurp', file=sys.stderr)
+    sys.exit(1)
 if args[0] == 'api':
     if scenario == 'unauthorized':
         print('HTTP 401', file=sys.stderr)
@@ -25,14 +28,17 @@ if args[0] == 'api':
         print('commit ' + ('b' * 40 if scenario == 'wrong_tag' else os.environ['COMMIT']))
     elif '/releases?' in args[1]:
         if scenario == 'new':
-            print('[[]]')
+            print('[]')
             sys.exit(0)
         draft = scenario.startswith('draft')
         assets = [] if scenario.endswith('missing') else [{'name': 'codex-portal.tar.gz'}]
         target = 'b' * 40 if scenario == 'draft_wrong_target' else os.environ['COMMIT']
         release = {'tag_name': 'portal-' + os.environ['COMMIT'], 'draft': draft,
                    'target_commitish': target, 'assets': assets}
-        print(json.dumps([[release, release] if scenario == 'draft_duplicate' else [release]]))
+        print(json.dumps([{'tag_name': 'unrelated-release', 'draft': False, 'assets': []}]))
+        print(json.dumps([release]))
+        if scenario == 'draft_duplicate':
+            print(json.dumps([release]))
     else:
         sys.exit(2)
 elif args[0:2] == ['release', 'download']:

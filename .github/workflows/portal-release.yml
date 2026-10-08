@@ -66,8 +66,8 @@ jobs:
             cat tag-error.txt >&2
             exit 1
           fi
-          gh api "repos/$GH_REPO/releases?per_page=100" --paginate --slurp > releases.json
-          jq --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' releases.json > matching-releases.json
+          gh api "repos/$GH_REPO/releases?per_page=100" --paginate > releases.json
+          jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' releases.json > matching-releases.json
           release_count=$(jq length matching-releases.json)
           if test "$release_count" -gt 1; then
             echo "Multiple releases claim the same commit tag: $tag" >&2
