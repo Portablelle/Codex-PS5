@@ -64,9 +64,11 @@ available, after excluding account details, credentials, and private prompts.
 The `Portal release` workflow builds every `main` push and publishes a prerelease
 tagged `portal-<40-character commit SHA>` with the single `codex-portal.tar.gz`
 asset. Both build and publication run on dedie's isolated `codex-ps5-ci` slot.
-Same-repository pull requests exercise the same package build with read-only
-repository permissions; they cannot publish. Fork PRs do not enter this runner.
-Manual workflow runs are allowed only on `main`.
+Full native/backend package builds run only for `main` pushes and manual runs
+on `main`. Pull requests do not trigger this workflow; the existing host tests
+and PS5 compile checks remain unchanged. Before merging runner/toolchain changes,
+validate one reviewed branch with an isolated direct smoke build on dedie without
+publishing any release.
 
 The runner image must supply the pinned backend PS5 SDK at `/opt/ps5-payload-sdk`,
 LLVM 18 and 19, Rust 1.95 with `rust-src` and the FreeBSD target, and the Rust

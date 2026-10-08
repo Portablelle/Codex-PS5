@@ -162,7 +162,8 @@ Every `main` push also builds `codex-portal.tar.gz` on the isolated self-hosted
 These prereleases are for the Portal installer, not manual ShadowMount installation.
 The package includes content-addressed chunks, licenses, corresponding committed
 source, and a complete per-file SHA-256 inventory. Existing release assets are never
-replaced. Same-repository pull requests exercise the build without publishing.
+replaced. Full builds run only for `main` pushes or manual runs on `main`;
+pull requests keep the existing host tests and PS5 compile checks.
 
 ## Credits
 

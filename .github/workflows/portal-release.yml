@@ -1,7 +1,6 @@
 name: Portal release
 
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -15,9 +14,7 @@ permissions:
 
 jobs:
   build:
-    if: >-
-      github.ref == 'refs/heads/main' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, codex-ps5-ci]
     timeout-minutes: 180
     steps:
@@ -43,7 +40,7 @@ jobs:
           retention-days: 7
 
   publish:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: [self-hosted, linux, x64, codex-ps5-ci]
     timeout-minutes: 15

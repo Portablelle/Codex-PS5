@@ -25,7 +25,8 @@ and `INGAME.md` in sync with the code you change.
   full builds: `tools/build-native.sh`, `tools/build-backend-direct.sh`, then
   `tools/fetch-model.py` and `tools/package-portal.py`. It needs the preinstalled
   PS5 SDK, LLVM 18/19 and patched Rust 1.95 toolchain, without Docker or SSH access
-  inside a job. Same-repository PRs build but never publish. Packaging requires a
+  inside a job. Full builds run only for main pushes or manual runs on main;
+  pull requests keep the existing host and compile checks. Packaging requires a
   clean committed checkout; corresponding source comes only from `git archive HEAD`.
 
 ## Platforms
