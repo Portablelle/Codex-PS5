@@ -117,8 +117,10 @@ To roll back, close the app, reboot, and restore **both** the backed-up title
 folder and its matching service ELF. Preserve the same user-data folders.
 
 Botty+ users can keep using their existing Codex LAUNCH integration when its
-maintainer publishes a matching update. These GitHub assets do not themselves
-update the Botty portal.
+maintainer publishes a matching update. The manual-install assets do not themselves
+update the Botty portal. The separate `portal-<full commit SHA>` prereleases contain
+`codex-portal.tar.gz` for Portal's automated installer publication, not a Folder ZIP
+to transfer to the console.
 
 ## Troubleshooting
 

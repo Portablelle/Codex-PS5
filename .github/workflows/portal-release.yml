@@ -1,0 +1,106 @@
+name: Portal release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: portal-release-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, codex-ps5-ci]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Host regressions
+        run: bash tools/test.sh
+      - name: Build native app directly in the isolated toolchain runner
+        run: bash tools/build-native.sh
+      - name: Build backend directly in the isolated toolchain runner
+        run: bash tools/build-backend-direct.sh
+      - name: Fetch verified model and package portal release
+        run: |
+          python3 tools/fetch-model.py
+          python3 tools/package-portal.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-portal-${{ github.sha }}
+          path: dist/codex-portal.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: [self-hosted, linux, x64, codex-ps5-ci]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-portal-${{ github.sha }}
+      - name: Publish commit-addressed release without replacing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="portal-$COMMIT"
+          tag_exists=false
+          if gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type + " " + .object.sha' > tag-commit.txt 2> tag-error.txt; then
+            test "$(cat tag-commit.txt)" = "commit $COMMIT"
+            tag_exists=true
+          elif ! grep -q 'HTTP 404' tag-error.txt; then
+            cat tag-error.txt >&2
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/releases?per_page=100" --paginate > releases.json
+          jq -s --arg tag "$tag" '[.[][] | select(.tag_name == $tag)]' releases.json > matching-releases.json
+          release_count=$(jq length matching-releases.json)
+          if test "$release_count" -gt 1; then
+            echo "Multiple releases claim the same commit tag: $tag" >&2
+            exit 1
+          fi
+          if test "$release_count" = 1; then
+            jq '.[0]' matching-releases.json > release.json
+            draft=$(jq -r .draft release.json)
+            if test "$draft" = true; then
+              test "$(jq -r .target_commitish release.json)" = "$COMMIT"
+            else
+              test "$tag_exists" = true
+            fi
+            asset_count=$(jq '[.assets[] | select(.name == "codex-portal.tar.gz")] | length' release.json)
+            if test "$asset_count" = 1; then
+              existing=$(mktemp -d)
+              trap 'rm -rf "$existing"' EXIT
+              gh release download "$tag" --pattern codex-portal.tar.gz --dir "$existing"
+              cmp codex-portal.tar.gz "$existing/codex-portal.tar.gz"
+            elif test "$asset_count" = 0 && test "$draft" = true; then
+              gh release upload "$tag" codex-portal.tar.gz
+            else
+              echo "Existing release has an invalid asset inventory: $tag" >&2
+              exit 1
+            fi
+            if test "$draft" = true; then
+              gh release edit "$tag" --draft=false --latest=false
+            fi
+            echo "Matching portal release published: $tag"
+            exit 0
+          fi
+          gh release create "$tag" --target "$COMMIT" --draft --prerelease \
+            --title "Codex portal $COMMIT" \
+            --notes "Portal package built from main commit $COMMIT. Includes corresponding committed source and per-file SHA-256 metadata."
+          gh release upload "$tag" codex-portal.tar.gz
+          gh release edit "$tag" --draft=false --latest=false

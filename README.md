@@ -157,6 +157,14 @@ and `SHA256SUMS`. The legacy combined ZIP and `dist/bundle` remain available for
 Botty integrations. See [the technical reference](docs/REFERENCE.md#building)
 for prerequisites and [release preparation](docs/RELEASING.md) for maintainers.
 
+Every `main` push also builds `codex-portal.tar.gz` on the isolated self-hosted
+`codex-ps5-ci` runner on dedie, and publishes it under `portal-<full commit SHA>`.
+These prereleases are for the Portal installer, not manual ShadowMount installation.
+The package includes content-addressed chunks, licenses, corresponding committed
+source, and a complete per-file SHA-256 inventory. Existing release assets are never
+replaced. Full builds run only for `main` pushes or manual runs on `main`;
+pull requests keep the existing host tests and PS5 compile checks.
+
 ## Credits
 
 Built on [ps5-ai-cli](https://github.com/saawant12/ps5-ai-cli),
