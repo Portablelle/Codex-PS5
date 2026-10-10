@@ -126,6 +126,9 @@ Details and rollback steps are in [INSTALL.md](INSTALL.md#updates).
 | ↑ / ↓ | Scroll the conversation while the keyboard is closed |
 | Touchpad click | Open the quit confirmation |
 
+Confirming Quit stops dictation and the client connection, releases application
+resources, then asks the PS5 shell to close the title.
+
 ## Prototype limitations
 
 - The last conversation resumes when the app reopens or reconnects to the

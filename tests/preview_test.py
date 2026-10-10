@@ -3,6 +3,12 @@
 import os, subprocess, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Confirm Cancel first, then Quit; all cleanup must precede shell termination.
+# A returning or failed shell request must never fall back to CRT teardown.
+for failure in ('', '1'):
+    subprocess.run([os.path.join(ROOT, 'build/preview')], cwd=ROOT, check=True,
+                   timeout=10, env={**os.environ, 'PREVIEW_EXIT': '1', 'PREVIEW_EXIT_FAIL': failure})
+
 def render(**env):
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, 'frame.ppm')

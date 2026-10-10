@@ -16,7 +16,7 @@ ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -Wpedantic src/protocol.cpp src/ing
 build/tests/ingame
 # The host preview stubs kqueue (<sys/event.h>), which only BSD-derived hosts provide.
 if [ "$(uname)" = Darwin ]; then
-    ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -DBOTTY_HOST_PREVIEW src/main.cpp src/renderer.cpp src/protocol.cpp tests/preview.cpp -o build/preview
+    ${CXX:-clang++} -std=c++20 -O1 -Wall -Wextra -DBOTTY_HOST_PREVIEW src/main.cpp src/renderer.cpp src/protocol.cpp src/app_exit.cpp tests/preview.cpp -o build/preview
     python3 tests/preview_test.py
 fi
 bash tools/build-ingame-host.sh

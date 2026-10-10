@@ -9,6 +9,7 @@ int systemLanguage() noexcept;
 std::uint64_t now() noexcept;
 void sleep(unsigned microseconds) noexcept;
 void log(const char* message) noexcept;
+[[noreturn]] void exitApplication() noexcept;
 int connectLocal() noexcept;
 int send(int socket,const void* bytes,std::size_t length) noexcept;
 int receive(int socket,void* bytes,std::size_t length) noexcept;
