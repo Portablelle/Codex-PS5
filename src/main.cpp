@@ -426,5 +426,5 @@ int main(){
     ps5::demo::load_font();client.start();
     ps5::demo::run(draw,"Codex PS5 native frontend");
     voice.cancel();client.stop();voice.shutdown();if(pad>=0)scePadClose(pad);
-    return 0;
+    botty::platform::exitApplication();
 }

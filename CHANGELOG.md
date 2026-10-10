@@ -4,6 +4,9 @@
 
 Changes since the 0.0.3 prototype:
 
+- Route confirmed Quit through PS5 shell termination after cleanup instead of
+  returning from `main` into CRT/loader teardown (CE-108255-1 on quit).
+
 ### Conversations
 
 - Resume the last conversation after closing the app or reconnecting, restoring

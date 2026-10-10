@@ -112,7 +112,11 @@ The confirmation defaults to **Cancel**; select **Quit** with left/right and
 press Cross, or press Circle to go back. It is available even while disconnected
 or during dictation, a response or an approval request. Confirming stops dictation,
 declines pending approvals, requests interruption of the active turn and closes
-the connection before releasing application resources and exiting. An action
+the connection before releasing application resources and asking the PS5 shell
+to close the title through `sceSystemServiceLoadExec("exit", nullptr)`. The app
+waits for shell termination instead of returning to CRT/loader teardown. If the
+shell rejects the request, close the title through the PS menu; the failure is
+recorded in `/download0/codex-ps5-network.log`. An action
 already started is not rolled back; the conversation resumes at the next launch.
 
 Approval requests for commands and file changes appear in a window with
