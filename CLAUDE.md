@@ -28,7 +28,9 @@ and `INGAME.md` in sync with the code you change.
   `tools/fetch-model.py` and `tools/package-portal.py`. It needs the preinstalled
   PS5 SDK, LLVM 18/19 and patched Rust 1.95 toolchain, without Docker or SSH access
   inside a job. Full builds run only for main pushes or manual runs on main;
-  pull requests keep the existing host and compile checks. Packaging requires a
+  same-repo pull requests only run the host tests and the `ps5-build` compile checks.
+  That runner starts a fresh container per job, with a read-only root filesystem
+  (toolchains included) and a tmpfs `/tmp`. Packaging requires a
   clean committed checkout; corresponding source comes only from `git archive HEAD`.
 
 ## Platforms
