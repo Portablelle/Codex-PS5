@@ -6,6 +6,7 @@ class Client {
 public:
     bool start();void stop();State snapshot();
     void login();bool submit(std::string text);bool newConversation();void interrupt();void decide(bool accept);
+    void listModels();bool selectModel(std::string_view model,std::string_view effort);
 private:
     std::mutex mutex_;Protocol protocol_;bool stopping_=false;void* worker_=nullptr;
     std::string saved_; // conversation last written to the console, owned by the worker once started

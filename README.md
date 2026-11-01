@@ -35,6 +35,8 @@ interface previews, not photographs or console captures. Storage values are samp
   in English and AZERTY in French. On a French console, R1 switches the interface
   language while idle without changing your conversation.
 - **Sign in with your phone.** Press L1 and confirm the code shown on the TV.
+- **Choose the model.** Press L2 to pick a model and reasoning effort from your
+  account's list; the choice is kept for the next launch.
 
 <details>
 <summary>More interface screenshots</summary>
@@ -121,6 +123,7 @@ Details and rollback steps are in [INSTALL.md](INSTALL.md#updates).
 | ✕ | Select / confirm |
 | Options | Send the prompt |
 | L1 | Sign in to ChatGPT |
+| L2 | Choose the model and reasoning effort, while idle |
 | R1 | Switch French / English on a French PS5, while idle |
 | ○ | Cancel dictation, interrupt a response, or decline |
 | ↑ / ↓ | Scroll the conversation while the keyboard is closed |

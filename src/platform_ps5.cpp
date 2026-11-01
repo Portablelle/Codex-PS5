@@ -101,4 +101,18 @@ bool saveConversation(std::string_view thread) noexcept {
     if(!saved && !reported.exchange(true))log("Conversation not saved");
     return saved;
 }
+constexpr const char* modelFile="/download0/codex-ps5-model";
+std::string loadModel() {
+    const int fd=sceKernelOpen(modelFile,O_RDONLY,0);
+    if(fd<0)return {};
+    char bytes[257]{};const auto n=sceKernelRead(fd,bytes,sizeof(bytes));(void)sceKernelClose(fd);
+    return n>0 && n<static_cast<std::int64_t>(sizeof(bytes))?std::string(bytes,static_cast<std::size_t>(n)):std::string();
+}
+bool saveModel(std::string_view choice) noexcept {
+    const int fd=sceKernelOpen(modelFile,O_WRONLY|O_CREAT|O_TRUNC,0600);
+    bool saved=fd>=0 && sceKernelWrite(fd,choice.data(),choice.size())==static_cast<std::int64_t>(choice.size());
+    if(fd>=0 && sceKernelClose(fd)<0)saved=false;
+    if(!saved)log("Model choice not saved");
+    return saved;
+}
 }

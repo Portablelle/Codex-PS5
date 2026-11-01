@@ -19,4 +19,7 @@ void joinWorker(void* handle) noexcept;
 // Thread ID of the last conversation, kept in the title's own storage; empty when none.
 std::string loadConversation();
 bool saveConversation(std::string_view thread) noexcept;
+// Chosen model as "model\neffort\nname"; empty when none.
+std::string loadModel();
+bool saveModel(std::string_view choice) noexcept;
 }

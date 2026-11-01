@@ -29,8 +29,10 @@ and `INGAME.md` in sync with the code you change.
   PS5 SDK, LLVM 18/19 and patched Rust 1.95 toolchain, without Docker or SSH access
   inside a job. Full builds run only for main pushes or manual runs on main;
   same-repo pull requests only run the host tests and the `ps5-build` compile checks.
-  That runner starts a fresh container per job, with a read-only root filesystem
-  (toolchains included) and a tmpfs `/tmp`. Packaging requires a
+  That runner starts a fresh container per job, with a single-use runner identity,
+  a read-only root filesystem (toolchains included), a tmpfs `/tmp`, and a
+  `/home/runner` volume that is wiped before and after every job; the runner itself
+  is copied from the read-only image at startup. Packaging requires a
   clean committed checkout; corresponding source comes only from `git archive HEAD`.
 
 ## Platforms

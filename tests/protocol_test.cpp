@@ -424,5 +424,53 @@ int main(){
     assert(!p.ingest(R"({"id":9223372036854775807,"result":{}})"));
     assert(p.state.authenticated);
     p.disconnect();assert(p.outgoing.empty() && p.state.thread.empty() && !p.state.authenticated);
+    {
+        // Issue 37: the model and effort are chosen from model/list and sent with every turn.
+        Protocol m;m.begin();m.ingest(R"({"id":1,"result":{}})");
+        auto size=m.outgoing.size();m.listModels();assert(m.outgoing.size()==size && !m.state.modelsLoading); // not before sign-in
+        m.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        auto start=Json::parse(m.outgoing.back());
+        assert(start["params"]["model"]=="gpt-6.1-sol" && start["params"]["config"]["model_reasoning_effort"]=="low");
+        m.ingest(R"({"id":3,"result":{"thread":{"id":"t"}}})");
+        assert(!m.selectModel("gpt-6.1-sol","low")); // nothing listed yet
+        m.listModels();auto list=Json::parse(m.outgoing.back());
+        assert(list["method"]=="model/list" && list["id"]==4 && list["params"]["limit"]==32 && m.state.modelsLoading);
+        size=m.outgoing.size();m.listModels();assert(m.outgoing.size()==size); // one request at a time
+        assert(m.ingest(R"({"id":4,"result":{"data":[
+            {"model":"gpt-6.1-sol","displayName":"GPT-6.1 Sol","hidden":false,"defaultReasoningEffort":"low",
+             "supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"high"},{"reasoningEffort":"low"}]},
+            {"model":"secret","displayName":"Hidden","hidden":true,"defaultReasoningEffort":"low","supportedReasoningEfforts":[]},
+            {"model":"bad model","displayName":"Bad","hidden":false,"defaultReasoningEffort":"low","supportedReasoningEfforts":[]},
+            {"model":"mini","displayName":"","hidden":false,"defaultReasoningEffort":"medium",
+             "supportedReasoningEfforts":[{"reasoningEffort":"minimal"},{"reasoningEffort":"BAD"}]}],"nextCursor":null}})"));
+        assert(!m.state.modelsLoading && m.state.models.size()==2 && m.state.modelLists==1);
+        assert(m.state.models[0].efforts==std::vector<std::string>({"low","high"}) && m.state.models[0].name=="GPT-6.1 Sol");
+        // A missing display name shows the model ID; the default effort is always offered.
+        assert(m.state.models[1].name=="mini" && m.state.models[1].efforts==std::vector<std::string>({"minimal","medium"}));
+        assert(!m.selectModel("mini","high") && !m.selectModel("secret","low") && !m.selectModel("bad model","low"));
+        assert(m.selectModel("mini","minimal") && m.state.model=="mini" && m.state.effort=="minimal" && m.state.modelName=="mini");
+        assert(m.submit("Hello"));auto turn=Json::parse(m.outgoing.back());
+        assert(turn["method"]=="turn/start" && turn["params"]["model"]=="mini" && turn["params"]["effort"]=="minimal");
+        assert(!m.selectModel("gpt-6.1-sol","high") && m.state.model=="mini"); // not during a turn
+        m.ingest(R"({"method":"turn/completed","params":{"turn":{"status":"completed"}}})");
+        assert(m.selectModel("gpt-6.1-sol","high") && m.state.modelName=="GPT-6.1 Sol");
+        // The choice survives a reconnection and starts the next conversation.
+        m.disconnect();m.begin();const auto init=Json::parse(m.outgoing.back())["id"].get<int>();
+        m.ingest(Json({{"id",init},{"result",Json::object()}}).dump());m.ingest(Json({{"id",init+1},{"result",{{"account",{{"type","chatgpt"}}}}}}).dump());
+        start=Json::parse(m.outgoing.back());
+        assert(start["params"]["model"]=="gpt-6.1-sol" && start["params"]["config"]["model_reasoning_effort"]=="high" && m.state.models.empty());
+        // A failed list keeps the current choice and allows another attempt.
+        m.listModels();assert(m.ingest(Json({{"id",Json::parse(m.outgoing.back())["id"]},{"error",{{"message","offline"}}}}).dump()));
+        assert(!m.state.modelsLoading && m.state.model=="gpt-6.1-sol" && m.state.modelLists==2); // never reset, so an open sheet cannot miss an answer
+        m.listModels();assert(Json::parse(m.outgoing.back())["method"]=="model/list");
+        // A saved choice is restored only when well formed.
+        Protocol saved;saved.preferModel("mini","medium","GPT Mini");assert(saved.state.model=="mini" && saved.state.modelName=="GPT Mini");
+        saved.preferModel("../x","low","X");saved.preferModel("mini","HIGH","X");assert(saved.state.model=="mini" && saved.state.effort=="medium");
+        saved.preferModel("other","low","bad\nname");assert(saved.state.model=="other" && saved.state.modelName=="other");
+        // Gameplay mode keeps its fixed model.
+        Protocol game{true};game.preferModel("mini","high","Mini");assert(game.state.model=="gpt-6.1-sol");
+        game.begin();game.ingest(R"({"id":1,"result":{}})");game.ingest(R"({"id":2,"result":{"account":{"type":"chatgpt"}}})");
+        size=game.outgoing.size();game.listModels();assert(game.outgoing.size()==size && !game.selectModel("gpt-6.1-sol","low"));
+    }
     std::cout<<"Protocol: handshake, UTF-8, approvals, errors and disconnect passed\n";
 }

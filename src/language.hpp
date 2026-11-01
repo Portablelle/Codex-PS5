@@ -158,6 +158,12 @@ inline std::string tr(std::string_view english) {
         {"Moving files","Déplacement de fichiers"},
         {"Running Git","Exécution de Git"},
         {"Waiting","Attente"},
+        {"Choose a model","Choisis un modèle"},
+        {"Applies from the next prompt.","S'applique dès le prochain prompt."},
+        {"Loading models...","Chargement des modèles..."},
+        {"No model list is available.","Aucune liste de modèles disponible."},
+        {"REASONING EFFORT","EFFORT DE RAISONNEMENT"},
+        {"Extra high","Très élevé"},
         // Short labels stay last: tr() matches the first English prefix.
         {"Dictate","Dicter"},
         {"Keyboard","Clavier"},
@@ -175,6 +181,14 @@ inline std::string tr(std::string_view english) {
         {"Retry","Réessayer"},
         {"Sign in","Connexion"},
         {"Quit","Quitter"},
+        {"Current","Actuel"},
+        {"Model","Modèle"},
+        {"Effort","Effort"},
+        {"None","Aucun"},
+        {"Minimal","Minimal"},
+        {"Low","Faible"},
+        {"Medium","Moyen"},
+        {"High","Élevé"},
     };
     for(const auto& entry:entries)if(english.starts_with(entry.english))
         return std::string(entry.french)+std::string(english.substr(entry.english.size()));
