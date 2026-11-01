@@ -40,6 +40,7 @@ bool Client::start(){
     if(const char* name=std::getenv("PREVIEW_MODEL_NAME"))protocol_.state.modelName=name;
     if(std::getenv("PREVIEW_MODELS"))protocol_.state.models={{"gpt-6.1-sol","GPT-6.1 Sol",{"low","medium","high","xhigh"},"medium"},
         {"gpt-6.1-sol-mini","GPT-6.1 Sol Mini",{"minimal","low","medium"},"low"},{"gpt-6.1","GPT-6.1",{"low","medium","high"},"medium"}};
+    if(std::getenv("PREVIEW_MODELS_WIDE"))protocol_.state.models[0].name=std::string(64,'W');
     if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt",true,"Moving a file"});
     return true;
 }

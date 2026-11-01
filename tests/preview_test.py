@@ -52,4 +52,7 @@ assert lit(region(wide, 700, 50, 1340, 110)) > 200, 'status hidden by a long mod
 # L2 opens the model sheet over the conversation, with the current model focused.
 models = render(PREVIEW_MODELS='1')
 assert accent(region(models, 1320, 430, 1460, 500)) > 200 and accent(region(short, 1320, 430, 1460, 500)) == 0, 'model sheet missing'
+# A long listed name is shortened inside its row: the dialog edge stays clear.
+listed = render(PREVIEW_MODELS='1', PREVIEW_MODELS_WIDE='1')
+assert region(listed, 1460, 430, 1520, 500) == region(models, 1460, 430, 1520, 500), 'model name leaves the dialog'
 print('Preview: sign-in with keyboard, long status clipping, error notice, retry button and model sheet passed')

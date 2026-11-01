@@ -339,8 +339,11 @@ void modelSheet(Canvas& c,const assistant::State& state){
     for(unsigned i=0;i<shown;++i){
         const auto& m=state.models[modelTop+i];const bool focused=modelTop+i==modelFocus;
         if(focused)c.rounded(cx,cy,inner,56,16,raised);
-        c.label(cx+24,cy+12,m.name,28,focused?ink:soft);
-        if(m.model==state.model){const auto tag=assistant::language::tr("Current");c.label(cx+inner-24-c.text_width(tag,24),cy+14,tag,24,accent);}
+        const auto tag=assistant::language::tr("Current");const unsigned room=inner-72-c.text_width(tag,24);
+        std::string name=m.name;
+        if(c.text_width(name,28)>room){while(!name.empty() && c.text_width(name+"…",28)>room)eraseCodepoint(name);name+="…";}
+        c.label(cx+24,cy+12,name,28,focused?ink:soft);
+        if(m.model==state.model)c.label(cx+inner-24-c.text_width(tag,24),cy+14,tag,24,accent);
         cy+=64;
     }
     cy+=20;tracked(c,cx,cy,assistant::language::tr("REASONING EFFORT"),20,accent,2);cy+=40;
