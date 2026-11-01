@@ -1,12 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.0.5 — prepared prerelease
 
-- Start conversations when the console cannot report its local UTC offset: Codex
-  now dates the session file in UTC instead of failing to create the thread (#36).
-- Choose the model and reasoning effort with L2 or `/model`, from the engine's
-  model list; the choice applies to following prompts and is kept for the next
-  launch (#37).
+Changes since the 0.0.4 prototype:
+
+- Choose the model and reasoning effort: press L2, or enter `/model` and press
+  Options, while Codex is idle. The list comes from the engine for your account;
+  the choice applies from the next prompt, is shown in the header, and is kept
+  for the next launch. GPT-6.1 SOL with low effort stays the default, and the
+  in-game companion keeps it (#37).
+- Start conversations on consoles that cannot report their local UTC offset:
+  Codex now dates the session folder in UTC instead of failing to create the
+  thread with "The system's UTC offset could not be determined" (#36).
+
+The downloads remain a complete ShadowMount Folder ZIP with Whisper Small Q5_1
+and a separate `assistant-service.elf`; the UTC fix is in the ELF, so update both.
+The experimental in-game companion is not included; see [INGAME.md](INGAME.md).
+
+Release preparation does not claim a new end-to-end console test. The UTC fix
+could not be reproduced on the validation console.
 
 ## 0.0.4 — prepared prerelease
 
