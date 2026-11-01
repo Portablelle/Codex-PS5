@@ -15,8 +15,10 @@ and `INGAME.md` in sync with the code you change.
 - `tests/resident_service_test.py` needs `build/ingame-service`, so run `tools/test.sh`
   once before running it on its own.
 - `bash tools/preview.sh` renders the UI to `build/preview.png` on the host (needs Pillow).
-- The `ps5-build` CI job compile-checks with the PS5 SDK and `-Werror`, on a self-hosted
-  runner: `backend/assistant-service.c` and the in-game service
+- The `ps5-build` CI job compile-checks with the PS5 SDK and `-Werror`, on the
+  `codex-ps5-ci` runner on dedie (`PS5_CHECK_DIRECT=1`, no Docker; without it the
+  scripts use the `codex-ps5-rust` and `opennow-ps5-builder` images):
+  `backend/assistant-service.c` and the in-game service
   (`tools/ps5-compile-check.sh`), and every native app source in `src/`
   (`tools/ps5-native-check.sh`). It links nothing: no package, whisper.cpp or Codex engine.
 - The live Codex handshake (`tests/app_server_handshake.py`) and console tests

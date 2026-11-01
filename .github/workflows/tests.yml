@@ -27,14 +27,19 @@ jobs:
         run: bash tools/test.sh
 
   ps5-build:
-    # Self-hosted runner on the build VPS (label ps5-sdk), which has the PS5 SDK image.
-    # Not a required check: if the VPS is offline the job just stays queued.
-    # Never run fork PR code on the VPS (Docker access is root there).
+    # Isolated toolchain runner on dedie (label codex-ps5-ci), with the PS5 SDK in
+    # /opt/ps5-payload-sdk and clang-18: the checks run directly, without Docker.
+    # Not a required check: if the runner is offline the job just stays queued.
+    # Never run fork PR code on a self-hosted runner.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, ps5-sdk]
+    runs-on: [self-hosted, linux, x64, codex-ps5-ci]
     timeout-minutes: 15
+    env:
+      PS5_CHECK_DIRECT: 1
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: PS5 compile check, backend and in-game service (prospero-clang -Werror)
         run: bash tools/ps5-compile-check.sh
       - name: PS5 compile check, native app (prospero-clang -Werror)
