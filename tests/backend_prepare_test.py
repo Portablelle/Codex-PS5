@@ -41,6 +41,40 @@ class BackendPrepareTest(unittest.TestCase):
             subprocess.run(['python3', str(root / 'tools/prepare-backend.py')], check=True)
             self.assertIn(b'/work', (staged / 'tools/check-codex.sh').read_bytes())
 
+    def test_codex_session_path_falls_back_to_utc(self):
+        # Issue 36: localtime_r can fail on the PS5, which made every thread/start fail.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('backend', 'src', 'tools', 'vendor/ps5-ai-cli'):
+                shutil.copytree(ROOT / name, root / name, ignore=shutil.ignore_patterns('__pycache__'))
+            for name in ('VERSION', 'upstream-lock.json'):
+                shutil.copy2(ROOT / name, root / name)
+            subprocess.run(['python3', str(root / 'tools/prepare-backend.py'), '--direct'], check=True,
+                           stdout=subprocess.DEVNULL)
+            patches = sorted((root / '.deps/backend/patches/codex').glob('*.patch'))
+            self.assertEqual(patches[-1].name, '0100-ps5-local-time-fallback.patch')
+            # The function as pinned in Codex rust-v0.160.0 (codex-rs/rollout/src/recorder.rs).
+            codex = root / 'codex'
+            source = codex / 'codex-rs/rollout/src/recorder.rs'
+            source.parent.mkdir(parents=True)
+            source.write_text('fn precompute_new_rollout_path(\n'
+                              '    config: &impl RolloutConfigView,\n'
+                              '    thread_id: ThreadId,\n'
+                              '    rollout_id_override: Option<RolloutId>,\n'
+                              ') -> std::io::Result<(PathBuf, OffsetDateTime)> {\n'
+                              '    // Resolve ~/.codex/sessions/YYYY/MM/DD path.\n'
+                              '    let timestamp = OffsetDateTime::now_local()\n'
+                              '        .map_err(|e| IoError::other(format!("failed to get local time: {e}")))?;\n'
+                              '    let mut dir = config.codex_home().to_path_buf();\n'
+                              '    dir.push(SESSIONS_SUBDIR);\n'
+                              '    dir.push(timestamp.year().to_string());\n'
+                              '}\n')
+            subprocess.run(['git', 'init', '-q', str(codex)], check=True)
+            subprocess.run(['git', 'apply', str(patches[-1])], cwd=codex, check=True)
+            patched = source.read_text()
+            self.assertIn('now_local().unwrap_or_else(|_| OffsetDateTime::now_utc())', patched)
+            self.assertNotIn('failed to get local time', patched)
+
 
 if __name__ == '__main__':
     unittest.main()

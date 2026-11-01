@@ -37,11 +37,15 @@ bool Client::start(){
     if(std::getenv("PREVIEW_SIGNIN")){protocol_.state.code="K7QF-29XM";protocol_.state.url="https://auth.openai.com/codex/device";protocol_.state.status="Sign in on your phone using the displayed code.";}
     if(const char* status=std::getenv("PREVIEW_STATUS"))protocol_.state.status=status;
     if(std::getenv("PREVIEW_THREAD_FAILED")){protocol_.state.thread.clear();protocol_.state.threadFailed=true;protocol_.state.status="Error: model unavailable";}
+    if(const char* name=std::getenv("PREVIEW_MODEL_NAME"))protocol_.state.modelName=name;
+    if(std::getenv("PREVIEW_MODELS"))protocol_.state.models={{"gpt-6.1-sol","GPT-6.1 Sol",{"low","medium","high","xhigh"},"medium"},
+        {"gpt-6.1-sol-mini","GPT-6.1 Sol Mini",{"minimal","low","medium"},"low"},{"gpt-6.1","GPT-6.1",{"low","medium","high"},"medium"}};
     if(std::getenv("PREVIEW_APPROVAL"))protocol_.state.approvals.push_back({"demo","item/commandExecution/requestApproval","mv /data/notes.txt /data/archives/notes.txt",true,"Moving a file"});
     return true;
 }
 void Client::stop(){require(voiceCancelled || !exitTest(),"client stopped before dictation cancellation");clientStopped=true;}State Client::snapshot(){return protocol_.state;}
 void Client::login(){}bool Client::submit(std::string){return true;}bool Client::newConversation(){return false;}void Client::interrupt(){}void Client::decide(bool){}
+void Client::listModels(){++protocol_.state.modelLists;}bool Client::selectModel(std::string_view,std::string_view){return true;}
 void Voice::toggle(){}void Voice::cancel(){voiceCancelled=true;}void Voice::shutdown(){require(clientStopped || !exitTest(),"voice shutdown before client stop");voiceStopped=true;}
 VoiceState Voice::snapshot(){return {};}
 std::string Voice::takeTranscript(){static bool first=true;if(first){first=false;return "List the files in /data and help me organize them.";}return {};}
@@ -102,7 +106,7 @@ int scePadRead(int,PS5_PadData* p,int){
         constexpr unsigned sequence[]={PS5_PAD_BUTTON_TOUCH_PAD,PS5_PAD_BUTTON_CROSS,
             PS5_PAD_BUTTON_TOUCH_PAD,PS5_PAD_BUTTON_RIGHT,PS5_PAD_BUTTON_CROSS};
         require(inputStep<5,"confirmation did not stop the render loop");p[0].buttons=sequence[inputStep++];
-    }else p[0].buttons=std::getenv("PREVIEW_QUIT")?PS5_PAD_BUTTON_TOUCH_PAD:(std::getenv("PREVIEW_KEYBOARD")?PS5_PAD_BUTTON_SQUARE:0);
+    }else p[0].buttons=std::getenv("PREVIEW_QUIT")?PS5_PAD_BUTTON_TOUCH_PAD:(std::getenv("PREVIEW_KEYBOARD")?PS5_PAD_BUTTON_SQUARE:(std::getenv("PREVIEW_MODELS")?PS5_PAD_BUTTON_L2:0));
     return 1;
 }
 int sceUserServiceInitialize(void*){return 0;}

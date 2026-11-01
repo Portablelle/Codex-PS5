@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Start conversations when the console cannot report its local UTC offset: Codex
+  now dates the session file in UTC instead of failing to create the thread (#36).
+- Choose the model and reasoning effort with L2 or `/model`, from the engine's
+  model list; the choice applies to following prompts and is kept for the next
+  launch (#37).
+
 ## 0.0.4 — prepared prerelease
 
 Changes since the 0.0.3 prototype:

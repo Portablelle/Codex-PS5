@@ -1,0 +1,15 @@
+diff --git a/codex-rs/rollout/src/recorder.rs b/codex-rs/rollout/src/recorder.rs
+--- a/codex-rs/rollout/src/recorder.rs
++++ b/codex-rs/rollout/src/recorder.rs
+@@ -1725,8 +1725,9 @@ fn precompute_new_rollout_path(
+     rollout_id_override: Option<RolloutId>,
+ ) -> std::io::Result<(PathBuf, OffsetDateTime)> {
+     // Resolve ~/.codex/sessions/YYYY/MM/DD path.
+-    let timestamp = OffsetDateTime::now_local()
+-        .map_err(|e| IoError::other(format!("failed to get local time: {e}")))?;
++    // The PS5 libc cannot always resolve the local UTC offset (localtime_r fails).
++    // Only the session directory and file name depend on it: fall back to UTC.
++    let timestamp = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+     let mut dir = config.codex_home().to_path_buf();
+     dir.push(SESSIONS_SUBDIR);
+     dir.push(timestamp.year().to_string());

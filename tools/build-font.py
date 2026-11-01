@@ -5,15 +5,15 @@ import hashlib
 from PIL import Image, ImageDraw, ImageFont
 ROOT=Path(__file__).resolve().parents[1]
 font_path=ROOT/'vendor/manrope/Manrope.ttf'
-# Private-use glyphs E000/E001 are the controller's L1/R1 shoulder badges.
+# Private-use glyphs E000/E001/E002 are the controller's L1/R1/L2 shoulder badges.
 extra_codes=[0x152,0x153,0x2013,0x2014,0x2019,0x2026,
              0x25b3,0x25a1,0x25cb,0xd7,0x2630,0xe000,0xe001,
-             0x2191,0x2193,0x2190,0x2192]
+             0x2191,0x2193,0x2190,0x2192,0xe002]
 controller_codes=set(extra_codes[6:])
 data=bytearray(); faces=[]
 def controller_glyph(code,size):
     scale=4
-    width=round(size*1.8) if code in (0xe000,0xe001) else size
+    width=round(size*1.8) if code in (0xe000,0xe001,0xe002) else size
     image=Image.new('L',(width*scale,size*scale))
     draw=ImageDraw.Draw(image)
     left,top,right,bottom=2*scale,2*scale,(width-2)*scale,(size-2)*scale
@@ -30,10 +30,10 @@ def controller_glyph(code,size):
         draw.line((left,bottom,right,top),fill=255,width=stroke)
     elif code==0x2630:
         for y in (top,middle,bottom):draw.line((left,y,right,y),fill=255,width=stroke)
-    elif code in (0xe000,0xe001):
+    elif code in (0xe000,0xe001,0xe002):
         draw.rounded_rectangle((left,top,right,bottom),radius=4*scale,outline=255,width=stroke)
         badge_font=ImageFont.truetype(str(font_path),round(size*.65)*scale)
-        draw.text((width*scale//2,middle),'L1' if code==0xe000 else 'R1',font=badge_font,anchor='mm',fill=255)
+        draw.text((width*scale//2,middle),{0xe000:'L1',0xe001:'R1',0xe002:'L2'}[code],font=badge_font,anchor='mm',fill=255)
     else:
         # Rotate one arrow to keep all four directions visually consistent.
         draw.line((middle,bottom,middle,top),fill=255,width=stroke)

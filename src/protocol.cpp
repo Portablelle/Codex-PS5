@@ -48,7 +48,7 @@ bool Protocol::threadPending() const {
 }
 void Protocol::startThread(){
     if(!state.authenticated || !state.thread.empty() || threadPending())return;
-    Json params={{"model","gpt-6.1-sol"},{"config",{{"model_reasoning_effort","low"}}},
+    Json params={{"model",state.model},{"config",{{"model_reasoning_effort",state.effort}}},
                     {"cwd","/data/codex-ps5/workspace"},{"approvalPolicy",gameplay_?"never":"untrusted"},
                     {"sandbox",gameplay_?"read-only":"danger-full-access"},{"developerInstructions",
                     gameplay_?"You are a voice companion helping the user play a game on PS5. "
@@ -123,9 +123,37 @@ static bool threadId(std::string_view id){
     return !id.empty() && id.size()<=128 && std::all_of(id.begin(),id.end(),[](char c){
         return (c>='0' && c<='9') || (c>='a' && c<='z') || (c>='A' && c<='Z') || c=='-' || c=='_';});
 }
+static bool modelSlug(std::string_view id){
+    return !id.empty() && id.size()<=64 && std::all_of(id.begin(),id.end(),[](char c){
+        return (c>='0' && c<='9') || (c>='a' && c<='z') || (c>='A' && c<='Z') || c=='-' || c=='_' || c=='.';});
+}
+static bool effortName(std::string_view effort){
+    return !effort.empty() && effort.size()<=16 && std::all_of(effort.begin(),effort.end(),[](char c){return c>='a' && c<='z';});
+}
+static bool displayName(std::string_view name){
+    return !name.empty() && name.size()<=64 && std::all_of(name.begin(),name.end(),[](unsigned char c){return c>=' ' && c!=127;});
+}
+void Protocol::listModels(){
+    if(gameplay_ || !state.ready || !state.authenticated || state.modelsLoading)return;
+    state.modelsLoading=true;++state.revision;
+    request("model/list",{{"limit",32}});
+}
+bool Protocol::selectModel(std::string_view model,std::string_view effort){
+    if(gameplay_ || state.busy || !state.approvals.empty())return false;
+    const auto found=std::find_if(state.models.begin(),state.models.end(),[&](const ModelOption& m){return m.model==model;});
+    if(found==state.models.end() || std::find(found->efforts.begin(),found->efforts.end(),effort)==found->efforts.end())return false;
+    state.model=found->model;state.effort=std::string(effort);state.modelName=found->name;++state.revision;
+    return true;
+}
+void Protocol::preferModel(std::string_view model,std::string_view effort,std::string_view name){
+    if(gameplay_ || !modelSlug(model) || !effortName(effort))return;
+    state.model=std::string(model);state.effort=std::string(effort);state.modelName=displayName(name)?std::string(name):state.model;
+}
 void Protocol::begin(std::string_view resume,bool skipResume){
     std::string saved=!gameplay_ && threadId(resume)?std::string(resume):std::string(); // may view state.conversation
+    auto model=std::move(state.model),effort=std::move(state.effort),modelName=std::move(state.modelName);const auto lists=state.modelLists;
     pending_.clear();items_.clear();outgoing.clear();state=State{};state.connected=true;interruptPending_=false;
+    state.model=std::move(model);state.effort=std::move(effort);state.modelName=std::move(modelName);state.modelLists=lists;
     resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;history_.clear();
     state.conversation=std::move(saved);
     request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.4"}}},
@@ -153,7 +181,7 @@ bool Protocol::submit(std::string_view text,std::string_view imagePath){
     while(state.messages.size()>64)state.messages.pop_front();
     auto input=Json::array({{{"type","text"},{"text",std::string(text)},{"text_elements",Json::array()}}});
     if(!imagePath.empty())input.push_back({{"type","localImage"},{"path",std::string(imagePath)}});
-    request("turn/start",{{"threadId",state.thread},{"model","gpt-6.1-sol"},{"effort","low"},{"input",std::move(input)}});
+    request("turn/start",{{"threadId",state.thread},{"model",state.model},{"effort",state.effort},{"input",std::move(input)}});
     ++state.revision;
     return true;
 }
@@ -244,6 +272,7 @@ bool Protocol::ingest(std::string_view line){
         else if(j.contains("error")) {
             state.status="Error: "+field(object(j,"error"),"message");
             if(requestMethod=="turn/start"){state.busy=false;interruptPending_=false;}
+            if(requestMethod=="model/list"){state.modelsLoading=false;++state.modelLists;}
             if(requestMethod=="thread/start"){state.threadFailed=true;resumeSkipped_=false;}
             // A new conversation starts, without any prompt. The saved one is replaced only once
             // a turn starts in the new thread, so a transient failure does not lose it.
@@ -286,6 +315,27 @@ bool Protocol::ingest(std::string_view line){
             }
             else if(requestMethod=="turn/start"){
                 state.turn=field(object(r,"turn"),"id");flushInterrupt();
+            }
+            else if(requestMethod=="model/list"){
+                // One page is enough for a picker; hidden and malformed entries are skipped.
+                state.modelsLoading=false;state.models.clear();++state.modelLists;
+                const auto data=r.find("data");
+                if(data!=r.end() && data->is_array())for(const auto& m:*data){
+                    if(state.models.size()>=32)break;
+                    if(!m.is_object() || (m.contains("hidden") && m["hidden"]==true))continue;
+                    ModelOption option{field(m,"model"),field(m,"displayName"),{},field(m,"defaultReasoningEffort")};
+                    if(!modelSlug(option.model) || !effortName(option.defaultEffort))continue;
+                    if(!displayName(option.name))option.name=option.model;
+                    const auto efforts=m.find("supportedReasoningEfforts");
+                    if(efforts!=m.end() && efforts->is_array())for(const auto& e:*efforts){
+                        const auto effort=field(e,"reasoningEffort");
+                        if(effortName(effort) && option.efforts.size()<8 &&
+                           std::find(option.efforts.begin(),option.efforts.end(),effort)==option.efforts.end())option.efforts.push_back(effort);
+                    }
+                    if(std::find(option.efforts.begin(),option.efforts.end(),option.defaultEffort)==option.efforts.end())
+                        option.efforts.push_back(option.defaultEffort);
+                    state.models.push_back(std::move(option));
+                }
             }
             else if(requestMethod=="account/login/start") {
                 state.code=field(r,"userCode");state.url=field(r,"verificationUrl");

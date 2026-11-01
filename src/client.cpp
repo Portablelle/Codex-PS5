@@ -3,7 +3,13 @@
 #include "platform.hpp"
 namespace assistant {
 namespace platform=botty::platform;
-bool Client::start(){saved_=platform::loadConversation();protocol_.state.conversation=saved_;return platform::startWorker(run,this,&worker_);}
+bool Client::start(){
+    saved_=platform::loadConversation();protocol_.state.conversation=saved_;
+    const auto choice=platform::loadModel();const auto first=choice.find('\n'),second=first==std::string::npos?first:choice.find('\n',first+1);
+    if(second!=std::string::npos)protocol_.preferModel(std::string_view(choice).substr(0,first),
+        std::string_view(choice).substr(first+1,second-first-1),std::string_view(choice).substr(second+1));
+    return platform::startWorker(run,this,&worker_);
+}
 void Client::stop(){{std::lock_guard lock(mutex_);while(!protocol_.state.approvals.empty())protocol_.decide(false);protocol_.interrupt();stopping_=true;}if(worker_)platform::joinWorker(worker_);worker_=nullptr;}
 State Client::snapshot(){std::lock_guard lock(mutex_);return protocol_.state;}
 void Client::login(){std::lock_guard lock(mutex_);protocol_.login();}
@@ -11,6 +17,14 @@ bool Client::submit(std::string text){std::lock_guard lock(mutex_);return protoc
 bool Client::newConversation(){std::lock_guard lock(mutex_);return protocol_.newThread();}
 void Client::interrupt(){std::lock_guard lock(mutex_);protocol_.interrupt();}
 void Client::decide(bool accept){std::lock_guard lock(mutex_);protocol_.decide(accept);}
+void Client::listModels(){std::lock_guard lock(mutex_);protocol_.listModels();}
+// The choice is kept for the next launch; a failed write only loses that.
+bool Client::selectModel(std::string_view model,std::string_view effort){
+    std::string choice;
+    {std::lock_guard lock(mutex_);if(!protocol_.selectModel(model,effort))return false;
+     choice=protocol_.state.model+'\n'+protocol_.state.effort+'\n'+protocol_.state.modelName;}
+    platform::saveModel(choice);return true;
+}
 void* Client::run(void* p){static_cast<Client*>(p)->loop();return nullptr;}
 void Client::loop(){
     bool resumeCut=false;

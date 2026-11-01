@@ -45,4 +45,11 @@ def accent(pixels):
 failed = render(PREVIEW_THREAD_FAILED='1')
 assert accent(region(failed, 1400, 850, 1824, 990)) > 2000, 'retry button looks disabled'
 assert region(failed, 1400, 850, 1824, 990) != region(short, 1400, 850, 1824, 990), 'retry button reads Send'
-print('Preview: sign-in with keyboard, long status clipping, error notice and retry button passed')
+# A long model name from the engine is shortened: the title and status keep their room.
+wide = render(PREVIEW_STATUS='Ready', PREVIEW_MODEL_NAME='W' * 64)
+assert region(wide, 0, 50, 700, 110) == region(short, 0, 50, 700, 110), 'model label overlaps the title'
+assert lit(region(wide, 700, 50, 1340, 110)) > 200, 'status hidden by a long model label'
+# L2 opens the model sheet over the conversation, with the current model focused.
+models = render(PREVIEW_MODELS='1')
+assert accent(region(models, 1320, 430, 1460, 500)) > 200 and accent(region(short, 1320, 430, 1460, 500)) == 0, 'model sheet missing'
+print('Preview: sign-in with keyboard, long status clipping, error notice, retry button and model sheet passed')

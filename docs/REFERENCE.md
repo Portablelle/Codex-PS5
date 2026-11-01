@@ -27,7 +27,8 @@ first installation. The build scripts do not install anything on the console.
 
 Sign in to ChatGPT using a code displayed on the TV and confirmed on a phone.
 Codex responses require Internet access and an account with Codex access.
-The selected model is **GPT-6.1 SOL**, with **low** reasoning effort.
+The default model is **GPT-6.1 SOL**, with **low** reasoning effort; see
+[Model and reasoning effort](#model-and-reasoning-effort) to change it.
 The application does not include an SSH connection.
 
 ## Language
@@ -97,9 +98,10 @@ are not connected to the payload yet. No new controller shortcut is enabled.
 | Triangle | Start / finish dictation |
 | Square | Open / close the controller keyboard |
 | Cross | Enter a key / confirm a choice |
-| Options | Send the prompt (`/quit` opens the exit confirmation, `/new` starts a new conversation) |
+| Options | Send the prompt (`/quit` opens the exit confirmation, `/new` starts a new conversation, `/model` opens the model choice) |
 | Touchpad click | Open the exit confirmation |
 | L1 | Sign in to ChatGPT |
+| L2 | Choose the model and reasoning effort, while idle |
 | R1 | French / English, only on a French PS5 while idle |
 | Circle | Cancel dictation / interrupt Codex / decline an action |
 | Up / down | Scroll through the response while the keyboard is closed |
@@ -161,6 +163,19 @@ file" ("A command" or "A file change" when there is no summary). It records the
 decision actually sent: an action with incomplete details is always
 "Declined", and so are the requests declined on quit. Commands accepted
 automatically leave no line.
+
+## Model and reasoning effort
+
+Press **L2**, or enter `/model` and press Options, while signed in and while Codex
+and the microphone are idle. The app asks the engine for its model list
+(`model/list`, one page of up to 32 models, hidden ones left out) and shows it
+with the reasoning efforts each model accepts. Up/down chooses the model,
+left/right the effort, Cross confirms and Circle cancels. The choice is sent with
+every following prompt (`turn/start`) and with each new or resumed conversation;
+it cannot change during a turn. It is kept in `/download0/codex-ps5-model` for the
+next launch and is not checked against the list at startup. If that model is no longer offered, starting a conversation fails with the
+engine's error: choose another model with L2, then retry. The in-game companion
+always uses GPT-6.1 SOL with low effort.
 
 ## Local toolbox
 

@@ -19,6 +19,9 @@ using ps5::demo::Canvas;using ps5::demo::Color;
 assistant::Client client;assistant::Voice voice;
 std::string composer,composerNotice;int pad=-1;unsigned previous=0,key=0,scroll=0,approvalScroll=0;
 bool quitting=false,confirmQuit=false;
+// Model sheet: focus is placed on the current choice once the list has arrived.
+bool choosingModel=false,modelFocusSet=false;unsigned modelFocus=0,effortFocus=0,modelTop=0;
+std::uint64_t modelListsSeen=0; // answers counted when the sheet opened: wait for a newer one
 bool keyboard=false,approve=false;std::string approvalIdentity;
 std::uint64_t uiRevision=0,lastProtocol=0;std::string lastMic;
 std::uint64_t nextPadRetry=0;
@@ -120,7 +123,14 @@ bool failing(std::string_view status){
 void header(Canvas& c,const assistant::State& state){
     c.rounded(left,58,44,44,12,accent);c.label(left+(44-c.text_width("C",24))/2,62,"C",24,bg);
     c.label(160,56,"Codex",32,ink);tracked(c,172+c.text_width("Codex",32),68,"PS5",20,muted,3);
-    constexpr std::string_view model="GPT-6.1 SOL · LOW";
+    // Engine names can be long: keep the label narrow enough for the title and status.
+    std::string name=state.modelName;for(auto& ch:name)if(ch>='a' && ch<='z')ch-=32;
+    std::string effort=state.effort;for(auto& ch:effort)if(ch>='a' && ch<='z')ch-=32;
+    std::string model=name+" · "+effort;
+    if(trackedWidth(c,model,20,2)>480){
+        while(!name.empty() && trackedWidth(c,name+"… · "+effort,20,2)>480)eraseCodepoint(name);
+        model=name+"… · "+effort;
+    }
     const unsigned modelX=right-trackedWidth(c,model,20,2);tracked(c,modelX,68,model,20,muted,2);
     c.rectangle(modelX-33,66,1,28,edge);
     // Server text has no length limit: keep it between the title and the model label.
@@ -256,7 +266,9 @@ void hints(Canvas& c){
         x-=36+hintWidth(c,"",other);unsigned pen=x;hint(c,pen,y,"",other,muted);
     }
     const auto login=assistant::language::tr("Sign in");
-    x-=36+hintWidth(c,"",login);hint(c,x,y,"",login,muted);
+    x-=36+hintWidth(c,"",login);unsigned pen=x;hint(c,pen,y,"",login,muted);
+    const auto model=assistant::language::tr("Model");
+    x-=36+hintWidth(c,"",model);hint(c,x,y,"",model,muted);
 }
 // Centered dialog over a dimmed screen. Returns the content origin.
 void sheetHints(Canvas& c,unsigned x,unsigned y,bool scrollable,bool choosable=true){
@@ -301,6 +313,46 @@ void approvalSheet(Canvas& c,const assistant::Approval& approval){
     button(c,cx+256,cy,assistant::language::tr("Allow"),approve,approval.reviewable?soft:dim);
     sheetHints(c,x+width-64,cy+19,rows.size()>visible,approval.reviewable);
 }
+std::string effortLabel(const std::string& effort){
+    constexpr std::pair<std::string_view,std::string_view> names[]={{"none","None"},{"minimal","Minimal"},{"low","Low"},
+        {"medium","Medium"},{"high","High"},{"xhigh","Extra high"}};
+    for(const auto& [id,name]:names)if(effort==id)return assistant::language::tr(name);
+    return effort;
+}
+void modelSheet(Canvas& c,const assistant::State& state){
+    constexpr unsigned width=1120,visible=6,inner=width-128;
+    const bool listed=modelFocusSet && modelFocus<state.models.size();
+    const unsigned shown=listed?std::min<unsigned>(static_cast<unsigned>(state.models.size()),visible):0;
+    const unsigned height=listed?404+shown*64:320;
+    const unsigned x=(1920-width)/2,y=(1080-height)/2,cx=x+64;
+    c.shade(184);c.rounded(x,y,width,height,32,edge);c.rounded(x+1,y+1,width-2,height-2,31,surface);
+    c.label(cx,y+56,assistant::language::tr("Choose a model"),44,ink);
+    c.label(cx,y+124,assistant::language::tr("Applies from the next prompt."),24,muted);
+    const auto cancel=assistant::language::tr("Cancel");const unsigned hy=y+height-72;
+    unsigned cy=y+184;
+    if(!listed){
+        c.label(cx,cy,assistant::language::tr(state.modelLists==modelListsSeen?"Loading models...":"No model list is available."),28,soft);
+        unsigned hx=x+width-64-hintWidth(c,"○",cancel);hint(c,hx,hy,"○",cancel,muted);
+        return;
+    }
+    modelTop=std::min(modelTop,modelFocus);if(modelFocus>=modelTop+visible)modelTop=modelFocus-visible+1;
+    for(unsigned i=0;i<shown;++i){
+        const auto& m=state.models[modelTop+i];const bool focused=modelTop+i==modelFocus;
+        if(focused)c.rounded(cx,cy,inner,56,16,raised);
+        c.label(cx+24,cy+12,m.name,28,focused?ink:soft);
+        if(m.model==state.model){const auto tag=assistant::language::tr("Current");c.label(cx+inner-24-c.text_width(tag,24),cy+14,tag,24,accent);}
+        cy+=64;
+    }
+    cy+=20;tracked(c,cx,cy,assistant::language::tr("REASONING EFFORT"),20,accent,2);cy+=40;
+    const auto& efforts=state.models[modelFocus].efforts;unsigned ex=cx;
+    for(unsigned i=0;i<efforts.size();++i){
+        const auto text=effortLabel(efforts[i]);const unsigned w=c.text_width(text,24)+48;
+        c.rounded(ex,cy,w,52,16,i==effortFocus?ink:well);c.label(ex+24,cy+12,text,24,i==effortFocus?bg:soft);ex+=w+12;
+    }
+    const auto models=assistant::language::tr("Model"),effort=assistant::language::tr("Effort"),confirm=assistant::language::tr("Confirm");
+    unsigned hx=x+width-64-(hintWidth(c,"↑↓",models)+hintWidth(c,"←→",effort)+hintWidth(c,"×",confirm)+hintWidth(c,"○",cancel)+108);
+    hint(c,hx,hy,"↑↓",models,muted);hint(c,hx,hy,"←→",effort,muted);hint(c,hx,hy,"×",confirm,muted);hint(c,hx,hy,"○",cancel,muted);
+}
 void quitSheet(Canvas& c){
     constexpr unsigned width=1080,height=388;
     constexpr unsigned x=(1920-width)/2,y=(1080-height)/2,cx=x+64;
@@ -333,7 +385,13 @@ void render(Canvas& c,const assistant::State& state,const assistant::VoiceState&
     if(!state.code.empty())signIn(c,state,168,threadBottom);else conversation(c,state,168,threadBottom);
     if(keyboard)keyboardPanel(c,composerBottom+20);else hints(c);
     if(quitting)quitSheet(c);
+    else if(choosingModel)modelSheet(c,state);
     else if(!state.approvals.empty())approvalSheet(c,state.approvals.front());
+}
+unsigned effortIndex(const assistant::ModelOption& m,const std::string& effort){
+    auto found=std::find(m.efforts.begin(),m.efforts.end(),effort);
+    if(found==m.efforts.end())found=std::find(m.efforts.begin(),m.efforts.end(),m.defaultEffort);
+    return found==m.efforts.end()?0:static_cast<unsigned>(found-m.efforts.begin());
 }
 bool draw(Canvas& c) noexcept {
     if(pad<0 && botty::platform::now()>=nextPadRetry){
@@ -359,6 +417,7 @@ bool draw(Canvas& c) noexcept {
     const auto commandEnd=composer.find_last_not_of(" \t\r\n");
     const auto command=commandStart==std::string::npos?std::string():composer.substr(commandStart,commandEnd-commandStart+1);
     const bool quitCommand=command=="/quit";
+    const bool idle=!mic.recording && !mic.working && !state.busy && state.ready && state.authenticated && state.approvals.empty();
     if(!quitting && ((pressed&PS5_PAD_BUTTON_TOUCH_PAD) ||
         ((pressed&PS5_PAD_BUTTON_OPTIONS) && quitCommand))){
         quitting=true;confirmQuit=false;pressed=0;++uiRevision;
@@ -371,6 +430,22 @@ bool draw(Canvas& c) noexcept {
             if(confirmQuit)return false;
             quitting=false;
         }
+    } else if(choosingModel){
+        const bool listed=modelFocusSet && modelFocus<state.models.size();
+        if(listed){
+            const auto& m=state.models[modelFocus];const auto count=static_cast<unsigned>(state.models.size()),efforts=static_cast<unsigned>(m.efforts.size());
+            if(pressed&(PS5_PAD_BUTTON_UP|PS5_PAD_BUTTON_DOWN)){
+                modelFocus=(modelFocus+(pressed&PS5_PAD_BUTTON_UP?count-1:1))%count;
+                const auto& next=state.models[modelFocus];effortFocus=effortIndex(next,next.model==state.model?state.effort:next.defaultEffort);
+            }
+            else if(efforts && (pressed&PS5_PAD_BUTTON_LEFT))effortFocus=(effortFocus+efforts-1)%efforts;
+            else if(efforts && (pressed&PS5_PAD_BUTTON_RIGHT))effortFocus=(effortFocus+1)%efforts;
+        }
+        if(pressed&PS5_PAD_BUTTON_CIRCLE)choosingModel=false;
+        else if((pressed&PS5_PAD_BUTTON_CROSS) && listed && effortFocus<state.models[modelFocus].efforts.size()){
+            client.selectModel(state.models[modelFocus].model,state.models[modelFocus].efforts[effortFocus]);choosingModel=false;
+        }
+        if(!state.ready || state.busy)choosingModel=false;
     } else if(!state.approvals.empty()){
         const auto identity=state.approvals.front().id.dump();
         if(identity!=approvalIdentity){approvalIdentity=identity;approve=false;pressed=0;approvalScroll=0;}
@@ -385,6 +460,12 @@ bool draw(Canvas& c) noexcept {
             if(assistant::language::toggle())key=assistant::keyboard::follow(key,assistant::language::isFrench());
         }
         if(pressed&PS5_PAD_BUTTON_L1)client.login();
+        // L2, or /model and Options, opens the model sheet between turns.
+        const bool modelCommand=command=="/model" && (pressed&PS5_PAD_BUTTON_OPTIONS);
+        if(((pressed&PS5_PAD_BUTTON_L2) || modelCommand) && idle){
+            client.listModels();choosingModel=true;modelFocusSet=false;modelListsSeen=state.modelLists;keyboard=false;pressed=0;
+            if(modelCommand)composer.clear();
+        }
         if(pressed&PS5_PAD_BUTTON_TRIANGLE)voice.toggle();
         if(pressed&PS5_PAD_BUTTON_CIRCLE){if(mic.recording||mic.working)voice.cancel();else if(state.busy)client.interrupt();else keyboard=false;}
         if(pressed&PS5_PAD_BUTTON_SQUARE)keyboard=!keyboard;
@@ -392,6 +473,7 @@ bool draw(Canvas& c) noexcept {
         if((pressed&PS5_PAD_BUTTON_OPTIONS) && !mic.recording && !mic.working && !state.busy && state.ready && !composer.empty()){
             // /new leaves the resumed conversation for a new one; it is never sent as a prompt.
             if(command=="/new"){if(client.newConversation()){composer.clear();scroll=0;followConversation=true;}}
+            else if(command=="/model"){} // opened above when possible; never sent as a prompt
             else if(client.submit(composer)){composer.clear();scroll=0;followConversation=true;}
         }
         if(keyboard){
@@ -410,6 +492,13 @@ bool draw(Canvas& c) noexcept {
             if(pressed&PS5_PAD_BUTTON_UP && scroll){--scroll;followConversation=false;}
             if(pressed&PS5_PAD_BUTTON_DOWN && scroll<chatScrollMaximum){++scroll;followConversation=scroll==chatScrollMaximum;}
         }
+    }
+    // Placed after input, so a press never acts on a list that has just arrived.
+    if(choosingModel && !modelFocusSet)state=client.snapshot(); // the list may have arrived since input was read
+    if(choosingModel && !modelFocusSet && state.modelLists!=modelListsSeen && !state.models.empty()){
+        const auto current=std::find_if(state.models.begin(),state.models.end(),[&](const assistant::ModelOption& m){return m.model==state.model;});
+        modelFocus=current==state.models.end()?0:static_cast<unsigned>(current-state.models.begin());
+        effortFocus=effortIndex(state.models[modelFocus],state.effort);modelTop=0;modelFocusSet=true;++uiRevision;
     }
     if(pressed || !text.empty() || state.revision!=lastProtocol || mic.status!=lastMic){++uiRevision;lastProtocol=state.revision;lastMic=mic.status;}
     if(!c.needs_update(uiRevision))return true;

@@ -24,6 +24,13 @@ int main(){
     assert(language::tr("Scroll")=="Défiler" && language::tr("Send")=="Envoyer");
     assert(language::tr("Sign in")=="Connexion");
     assert(language::tr("Retry")=="Réessayer");
+    assert(language::tr("Choose a model")=="Choisis un modèle" && language::tr("Model")=="Modèle");
+    assert(language::tr("Applies from the next prompt.")=="S'applique dès le prochain prompt.");
+    assert(language::tr("Loading models...")=="Chargement des modèles..." && language::tr("Current")=="Actuel");
+    assert(language::tr("No model list is available.")=="Aucune liste de modèles disponible.");
+    assert(language::tr("REASONING EFFORT")=="EFFORT DE RAISONNEMENT" && language::tr("Effort")=="Effort");
+    assert(language::tr("None")=="Aucun" && language::tr("Minimal")=="Minimal" && language::tr("Low")=="Faible");
+    assert(language::tr("Medium")=="Moyen" && language::tr("High")=="Élevé" && language::tr("Extra high")=="Très élevé");
     assert(language::tr("Allowed: ")=="Autorisé : " && language::tr("Declined: ")=="Refusé : ");
     assert(language::tr("A command")=="Une commande" && language::tr("A file change")=="Une modification de fichiers");
     // Decision lines in the conversation are translated when drawn.

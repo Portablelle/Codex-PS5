@@ -43,6 +43,8 @@ bool saveConversation(std::string_view thread) noexcept {
     if(failures>0){--failures;return false;}
     stored=thread;return true;
 }
+std::string loadModel(){return {};}
+bool saveModel(std::string_view) noexcept {return true;}
 }
 namespace {
 std::string buffered;

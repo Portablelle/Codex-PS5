@@ -14,6 +14,8 @@ for name in ('df','ps','sysctl','tools'):
  shutil.copy2(root/f'backend/ps5-{name}.c',destination/f'platform/ps5-{name}.c')
 shutil.copy2(root/'backend/tool-compat.c',destination/'platform/tool-compat.c')
 shutil.copy2(root/'backend/runtime-tools.txt',destination/'platform/runtime-tools.txt')
+# Applied by fetch-codex.py after the vendored patches (sorted by name).
+shutil.copy2(root/'backend/codex-local-time.patch',destination/'patches/codex/0100-ps5-local-time-fallback.patch')
 version=(root/'VERSION').read_text().strip()
 inputs=[root/'VERSION',root/'upstream-lock.json',*sorted((root/'backend').glob('*')), *sorted((root/'tools').glob('*')), *sorted((root/'src').glob('*'))]
 identity=hashlib.sha256(b''.join(p.relative_to(root).as_posix().encode()+b'\0'+p.read_bytes() for p in inputs if p.is_file())).hexdigest()
