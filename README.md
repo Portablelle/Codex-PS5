@@ -49,6 +49,10 @@ interface previews, not photographs or console captures. Storage values are samp
 
 ![Command approval dialog](docs/images/approval.png)
 
+### Choose a model
+
+![Model and reasoning effort picker](docs/images/model.png)
+
 These previews use the same renderer as the native app, with simulated session
 state. The approval example shows a file move that requires confirmation.
 </details>
@@ -71,7 +75,7 @@ Download these two files from the same
 
 | File | What it contains |
 | --- | --- |
-| `codex-ps5-0.0.4-Folder.zip` | Native app, runtime modules, and the complete Whisper Small Q5_1 model |
+| `codex-ps5-0.0.5-Folder.zip` | Native app, runtime modules, and the complete Whisper Small Q5_1 model |
 | `assistant-service.elf` | Codex engine and local file tools |
 
 1. Extract the Folder ZIP. Using [PS5 Upload](https://github.com/phantomptr/ps5upload)

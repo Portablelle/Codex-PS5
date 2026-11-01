@@ -156,7 +156,7 @@ void Protocol::begin(std::string_view resume,bool skipResume){
     state.model=std::move(model);state.effort=std::move(effort);state.modelName=std::move(modelName);state.modelLists=lists;
     resumeSkipped_=skipResume && !saved.empty();resume_=resumeSkipped_?std::string():saved;history_.clear();
     state.conversation=std::move(saved);
-    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.4"}}},
+    request("initialize",{{"clientInfo",{{"name","codex_ps5"},{"title","Codex PS5"},{"version","0.0.5"}}},
                           {"capabilities",{{"experimentalApi",true}}}});
 }
 void Protocol::disconnect(){

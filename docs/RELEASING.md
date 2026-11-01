@@ -54,6 +54,8 @@ PREVIEW_KEYBOARD=1 bash tools/preview.sh
 cp build/preview.png docs/images/keyboard.png
 PREVIEW_APPROVAL=1 bash tools/preview.sh
 cp build/preview.png docs/images/approval.png
+PREVIEW_MODELS=1 bash tools/preview.sh
+cp build/preview.png docs/images/model.png
 ```
 
 Keep the simulated-data caption. Console screenshots can replace these when
@@ -65,8 +67,9 @@ The `Portal release` workflow builds every `main` push and publishes a prereleas
 tagged `portal-<40-character commit SHA>` with the single `codex-portal.tar.gz`
 asset. Both build and publication run on dedie's isolated `codex-ps5-ci` slot.
 Full native/backend package builds run only for `main` pushes and manual runs
-on `main`. Pull requests do not trigger this workflow; the existing host tests
-and PS5 compile checks remain unchanged. Before merging runner/toolchain changes,
+on `main`. Pull requests do not trigger this workflow; they run the host tests
+and, from the same repository, the `ps5-build` compile checks on that runner.
+Before merging runner/toolchain changes,
 validate one reviewed branch with an isolated direct smoke build on dedie without
 publishing any release.
 
