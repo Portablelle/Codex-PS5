@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PS5 compile check of the native app (every src/ file, same flags as
-# vendor/native-platform/tools/build.sh, plus -Werror) for CI on the self-hosted runner.
+# vendor/native-platform/tools/build.sh, plus -Werror) for CI on a self-hosted runner.
+# PS5_CHECK_DIRECT=1 uses the runner's clang-18; otherwise the opennow-ps5-builder image.
 # No link: whisper.cpp, libc and the package are only built by tools/build-remote.sh.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,9 +22,7 @@ if [[ ! -f $deps/whisper-include/whisper.h ]]; then
     cp "$deps/whisper.cpp-$whisper/include/whisper.h" "$deps/whisper.cpp-$whisper"/ggml/include/*.h \
         "$deps/whisper-include/"
 fi
-docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
-    -e PS5_PAYLOAD_SDK="/work/$deps/ps5-payload-sdk" -e PS5_CLANG=clang-18 -e USE_CCACHE=0 \
-    -e DEPS="$deps" opennow-ps5-builder:latest bash -c '
+check='
 status=0
 # Same source set as build.sh: every C/C++ file under src/, recursively.
 while IFS= read -r -d "" source; do
@@ -33,3 +32,10 @@ while IFS= read -r -d "" source; do
         -c "$source" -o /dev/null || { echo "FAILED: $source" >&2; status=1; }
 done < <(find src -type f \( -name "*.c" -o -name "*.cc" -o -name "*.cpp" \) -print0 | sort -z)
 exit $status'
+if [[ ${PS5_CHECK_DIRECT:-} == 1 ]]; then
+    PS5_PAYLOAD_SDK="$PWD/$deps/ps5-payload-sdk" PS5_CLANG=clang-18 USE_CCACHE=0 DEPS="$deps" bash -c "$check"
+else
+    docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+        -e PS5_PAYLOAD_SDK="/work/$deps/ps5-payload-sdk" -e PS5_CLANG=clang-18 -e USE_CCACHE=0 \
+        -e DEPS="$deps" opennow-ps5-builder:latest bash -c "$check"
+fi
