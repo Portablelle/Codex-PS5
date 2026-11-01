@@ -15,8 +15,10 @@ and `INGAME.md` in sync with the code you change.
 - `tests/resident_service_test.py` needs `build/ingame-service`, so run `tools/test.sh`
   once before running it on its own.
 - `bash tools/preview.sh` renders the UI to `build/preview.png` on the host (needs Pillow).
-- The `ps5-build` CI job compile-checks with the PS5 SDK and `-Werror`, on a self-hosted
-  runner: `backend/assistant-service.c` and the in-game service
+- The `ps5-build` CI job compile-checks with the PS5 SDK and `-Werror`, on the
+  `codex-ps5-ci` runner on dedie (`PS5_CHECK_DIRECT=1`, no Docker; without it the
+  scripts use the `codex-ps5-rust` and `opennow-ps5-builder` images):
+  `backend/assistant-service.c` and the in-game service
   (`tools/ps5-compile-check.sh`), and every native app source in `src/`
   (`tools/ps5-native-check.sh`). It links nothing: no package, whisper.cpp or Codex engine.
 - The live Codex handshake (`tests/app_server_handshake.py`) and console tests
@@ -26,7 +28,9 @@ and `INGAME.md` in sync with the code you change.
   `tools/fetch-model.py` and `tools/package-portal.py`. It needs the preinstalled
   PS5 SDK, LLVM 18/19 and patched Rust 1.95 toolchain, without Docker or SSH access
   inside a job. Full builds run only for main pushes or manual runs on main;
-  pull requests keep the existing host and compile checks. Packaging requires a
+  same-repo pull requests only run the host tests and the `ps5-build` compile checks.
+  That runner starts a fresh container per job, with a read-only root filesystem
+  (toolchains included) and a tmpfs `/tmp`. Packaging requires a
   clean committed checkout; corresponding source comes only from `git archive HEAD`.
 
 ## Platforms
